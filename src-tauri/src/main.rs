@@ -1,6 +1,7 @@
 // Hides the extra console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(debug_assertions)]
 use tauri::Manager;
 
 use tauri::{Emitter, WebviewWindow};
@@ -48,15 +49,18 @@ fn main() {
         // "Launch at startup": registry Run key on Windows, LaunchAgent on macOS.
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .invoke_handler(tauri::generate_handler![cursor_in_window, quit_app])
-        // Dev only: opens the browser devtools for the hidden pet window so we can read
-        // console errors. `cfg!(debug_assertions)` is false in release builds, so nothing
-        // happens in the installer.
+        // Dev only: opens devtools for the pet window so console errors are visible.
+        // `#[cfg(debug_assertions)]` removes the code entirely from release builds, so the
+        // installer doesn't need the `devtools` feature and ships without devtools.
         .setup(|app| {
-            if cfg!(debug_assertions) {
+            #[cfg(debug_assertions)]
+            {
                 if let Some(win) = app.get_webview_window("pet") {
                     win.open_devtools();
                 }
             }
+            // Avoids an "unused variable" warning in release builds, where the block above is gone.
+            let _ = app;
             Ok(())
         })
         .run(tauri::generate_context!())
