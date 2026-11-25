@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Furever Pet",
+  "productName": "Furrever Pet",
   "version": "0.1.1",
-  "identifier": "com.example.fureverpet",
+  "identifier": "com.arabernardo.furreverpet",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -15,7 +15,7 @@
       {
         "label": "pet",
         "url": "index.html",
-        "title": "Furever Pet",
+        "title": "Furrever Pet",
         "width": 128,
         "height": 128,
         "decorations": false,

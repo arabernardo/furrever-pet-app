@@ -26,7 +26,7 @@ export class PetTray {
   async init(state: TrayState): Promise<void> {
     this.menu = await this.build(state)
     const icon = await defaultWindowIcon()
-    this.tray = await TrayIcon.new({ id: 'furever-pet', tooltip: 'Furever Pet', icon: icon ?? undefined, menu: this.menu })
+    this.tray = await TrayIcon.new({ id: 'furrever-pet', tooltip: 'furrever Pet', icon: icon ?? undefined, menu: this.menu })
   }
 
   /** Rebuilds the menu so labels/checkmarks match the current state. */

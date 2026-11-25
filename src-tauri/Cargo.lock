@@ -1114,7 +1114,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "furever-pet"
+name = "furrever-pet"
 version = "0.1.1"
 dependencies = [
  "tauri",

@@ -1,4 +1,4 @@
-# Furever Pet
+# Furrever Pet
 
 A tiny desktop pet (Tauri 2 + Vue 3 + TypeScript). No backend, no network, no analytics.
 

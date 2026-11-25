@@ -57,7 +57,7 @@ onBeforeUnmount(() => unlisten?.())
 
 <template>
   <main>
-    <h1>Furever Pet</h1>
+    <h1>Furrever Pet</h1>
 
     <label class="row">
       <span>Pet</span>

@@ -60,5 +60,5 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running Furever Pet");
+        .expect("error while running Furrever Pet");
 }

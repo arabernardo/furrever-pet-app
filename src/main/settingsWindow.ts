@@ -12,7 +12,7 @@ export async function openSettings(): Promise<void> {
     }
     const win = new WebviewWindow('settings', {
       url: 'settings.html',
-      title: 'Furever Pet Settings',
+      title: 'Furrever Pet Settings',
       width: 380,
       height: 640,
       resizable: false,
