@@ -1,0 +1,22 @@
+[package]
+name = "furever-pet"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# macos-private-api is what makes transparent windows work on macOS (not allowed on the Mac App Store)
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri-plugin-store = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

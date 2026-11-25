@@ -1,0 +1,25 @@
+{
+  "id": "dog",
+  "name": "Dog",
+  "frame": { "width": 128, "height": 128 },
+  "placeholder": { "style": "dog", "body": "#e0a766", "accent": "#a8692f", "belly": "#fbe9cf" },
+    "sounds": {
+    "click": ["bark1.mp3", "bark2.mp3", "bark3.mp3"],
+    "doubleClick": ["yelp1.mp3"],
+    "pickup": ["whine1.mp3", "whine2.mp3"],
+    "sneeze": ["sneeze1.mp3"],
+    "growl": ["growl1.mp3"],
+    "synth": { "click": "bark", "doubleClick": "yelp", "pickup": "whine", "sneeze": "sneeze", "growl": "growl" }
+  },
+  "animations": {
+    "idle": { "sheet": "sprites/idle.png", "frames": 4, "fps": 3, "loop": true },
+    "blink": { "sheet": "sprites/blink.png", "frames": 4, "fps": 12, "loop": false },
+    "walk-left": { "sheet": "sprites/walk-left.png", "frames": 6, "fps": 8, "loop": true },
+    "walk-right": { "mirrorOf": "walk-left", "frames": 6, "fps": 8, "loop": true },
+    "sit": { "sheet": "sprites/sit.png", "frames": 2, "fps": 2, "loop": true },
+    "sleep": { "sheet": "sprites/sleep.png", "frames": 4, "fps": 1.5, "loop": true },
+    "happy": { "sheet": "sprites/happy.png", "frames": 6, "fps": 8, "loop": false },
+    "surprised": { "sheet": "sprites/surprised.png", "frames": 4, "fps": 8, "loop": false },
+    "dangle": { "sheet": "sprites/dangle.png", "frames": 4, "fps": 6, "loop": true }
+  }
+}
