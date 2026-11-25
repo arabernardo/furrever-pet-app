@@ -27,8 +27,8 @@ const DRAG_THRESHOLD = 4
 const POLL_AWAKE_MS = 50
 const POLL_ASLEEP_MS = 250
 // Check-ins: a random delay between 30 and 90 minutes. Lower these while testing.
-const CHECKIN_MIN_MS = 20_000 // 30 * 60_000
-const CHECKIN_SPREAD_MS = 10_000 // 60 * 60_000
+const CHECKIN_MIN_MS = 30 * 60_000
+const CHECKIN_SPREAD_MS = 60 * 60_000
 const GREETING_DELAY_MS = 1500
 const BUBBLE_TTL_MS = 15_000
 const GREETING_TTL_MS = 6_000
