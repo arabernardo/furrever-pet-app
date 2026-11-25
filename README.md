@@ -97,6 +97,8 @@ Settings: pet name, boy or girl, your name, and "Pet checks in on me".
 - The speech bubble is a separate small window (`bubble.html`). Near the top of the screen it appears below
   the pet, with its tail still pointing down.
 - Names are limited to 20 characters. Everything stays on the device.
+- **First run:** on a fresh install the Settings window opens in welcome mode and the pet stays quiet until
+  you enter a pet name and your name and press Start. Installs that already have saved settings skip this.
 
 ## Panting
 

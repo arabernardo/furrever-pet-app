@@ -21,6 +21,12 @@ function cleanSleep(raw: Partial<AppSettings> | null | undefined): SleepAfter {
   return DEFAULT_SETTINGS.sleepAfterMin
 }
 
+/** Settings saved before this field existed mean an existing user: skip the welcome for them. */
+function cleanOnboarded(raw: Partial<AppSettings> | null | undefined): boolean {
+  if (typeof raw?.onboarded === 'boolean') return raw.onboarded
+  return raw != null
+}
+
 function sanitize(raw: Partial<AppSettings> | null | undefined): AppSettings {
   const s = { ...DEFAULT_SETTINGS, ...raw }
   const petIds = listPetConfigs().map((p) => p.id)
@@ -36,6 +42,7 @@ function sanitize(raw: Partial<AppSettings> | null | undefined): AppSettings {
     gender: GENDERS.includes(s.gender) ? s.gender : DEFAULT_SETTINGS.gender,
     ownerName: cleanName(s.ownerName),
     checkIns: !!s.checkIns,
+    onboarded: cleanOnboarded(raw),
   }
 }
 

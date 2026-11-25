@@ -3,7 +3,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { greetingPrompt, randomPrompt, type Persona, type Prompt, type Reaction } from '@/pets/dialogue'
+import { dayPart, greetingPrompt, randomPrompt, type Persona, type Prompt, type Reaction } from '@/pets/dialogue'
 import { loadPet, type LoadedAnimation, type LoadedPet } from '@/pets/loader'
 import { listPetConfigs } from '@/pets/registry'
 import { PetRenderer } from '@/pets/renderer'
@@ -27,8 +27,8 @@ const DRAG_THRESHOLD = 4
 const POLL_AWAKE_MS = 50
 const POLL_ASLEEP_MS = 250
 // Check-ins: a random delay between 30 and 90 minutes. Lower these while testing.
-const CHECKIN_MIN_MS = 30 * 60_000
-const CHECKIN_SPREAD_MS = 60 * 60_000
+const CHECKIN_MIN_MS = 20_000 // 30 * 60_000
+const CHECKIN_SPREAD_MS = 10_000 // 60 * 60_000
 const GREETING_DELAY_MS = 1500
 const BUBBLE_TTL_MS = 15_000
 const GREETING_TTL_MS = 6_000
@@ -134,10 +134,9 @@ async function boot(): Promise<void> {
   )
   await setVisible(true)
 
-  // Greet the owner shortly after launch.
-  window.setTimeout(() => {
-    if (canTalk()) void say(greetingPrompt(persona()))
-  }, GREETING_DELAY_MS)
+  // First run: ask for the names before the pet says anything. Otherwise greet as usual.
+  if (settings.onboarded) scheduleGreeting()
+  else await openSettings(true)
 }
 
 async function applySettings(next: AppSettings, first = false): Promise<void> {
@@ -151,6 +150,8 @@ async function applySettings(next: AppSettings, first = false): Promise<void> {
   if (petChanged || next.gender !== prev.gender) await switchPet(next.petId)
   if (petChanged || next.size !== prev.size) await resizeWindow(!first)
   if (next.checkIns !== prev.checkIns) scheduleCheckIn()
+  // The welcome was just completed: now the pet can introduce itself
+  if (!prev.onboarded && next.onboarded) scheduleGreeting()
   await tray?.update(trayState())
 }
 
@@ -226,11 +227,20 @@ function scheduleCheckIn(delayMs?: number): void {
   if (!visible || !settings.checkIns) return
   const delay = delayMs ?? CHECKIN_MIN_MS + Math.random() * CHECKIN_SPREAD_MS
   checkInTimer = window.setTimeout(() => {
+    // Asleep in the daytime: wake the pet up so it can ask. At night it stays asleep.
+    if (machine.state === 'sleep' && !press && !currentPrompt && dayPart() !== 'night') {
+      machine.touch()
+      window.setTimeout(() => {
+        if (canTalk()) void say(randomPrompt(persona()))
+      }, 1200)
+      scheduleCheckIn()
+      return
+    }
     if (canTalk()) {
       void say(randomPrompt(persona()))
       scheduleCheckIn()
     } else {
-      scheduleCheckIn(60_000) // asleep or busy: try again in a minute
+      scheduleCheckIn(60_000) // busy or asleep at night: try again in a minute
     }
   }, delay)
 }
@@ -243,6 +253,12 @@ async function say(prompt: Prompt): Promise<void> {
   window.clearTimeout(bubbleTimer)
   bubbleTimer = window.setTimeout(() => void endTalk(), prompt.choices.length > 0 ? BUBBLE_TTL_MS : GREETING_TTL_MS)
   await bubble.open({ text: prompt.text, choices: prompt.choices.map(({ label, reply }) => ({ label, reply })) })
+}
+
+function scheduleGreeting(): void {
+  window.setTimeout(() => {
+    if (canTalk()) void say(greetingPrompt(persona()))
+  }, GREETING_DELAY_MS)
 }
 
 function onChoice(index: number): void {

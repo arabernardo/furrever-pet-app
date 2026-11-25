@@ -1,7 +1,7 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 /** Creates the settings window on demand (closing it frees its memory), or focuses the existing one. */
-export async function openSettings(): Promise<void> {
+export async function openSettings(welcome = false): Promise<void> {
   try {
     const existing = await WebviewWindow.getByLabel('settings')
     if (existing) {
@@ -11,14 +11,15 @@ export async function openSettings(): Promise<void> {
       return
     }
     const win = new WebviewWindow('settings', {
-      url: 'settings.html',
-      title: 'Furrever Pet Settings',
+      url: welcome ? 'settings.html?welcome=1' : 'settings.html',
+      title: welcome ? 'Welcome to Furever Pet' : 'Furever Pet Settings',
       width: 380,
       height: 640,
       resizable: false,
       maximizable: false,
       minimizable: false,
       center: true,
+      focus: true,
     })
     void win.once('tauri://error', (e) => console.warn('[settings] failed to open', e))
   } catch (err) {

@@ -1,11 +1,21 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref, toRaw, watch, computed } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart'
 import { loadSettings, onSettingsChanged, saveSettings } from '@/main/settingsStore'
 import { listPetConfigs } from '@/pets/registry'
 import { DEFAULT_SETTINGS, GENDERS, MAX_NAME_LENGTH, PET_SIZES, SLEEP_OPTIONS } from '@/shared/defaults'
 import type { AppSettings } from '@/shared/types'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+
+const welcome = new URLSearchParams(location.search).has('welcome')
+const canStart = computed(() => form.petName.trim() !== '' && form.ownerName.trim() !== '')
+
+async function start(): Promise<void> {
+  window.clearTimeout(saveTimer)
+  await saveSettings({ ...toRaw(form), onboarded: true })
+  await getCurrentWindow().close()
+}
 
 const pets = listPetConfigs().map(({ id, name }) => ({ id, name }))
 const sizes = PET_SIZES
@@ -57,7 +67,8 @@ onBeforeUnmount(() => unlisten?.())
 
 <template>
   <main>
-    <h1>Furrever Pet</h1>
+    <h1>{{ welcome ? 'Welcome to Furever Pet!' : 'Furever Pet' }}</h1>
+    <p v-if="welcome" class="hint">Give your pet a name and tell it yours. It will say hi right after.</p>
 
     <label class="row">
       <span>Pet</span>
@@ -111,6 +122,7 @@ onBeforeUnmount(() => unlisten?.())
       <span>Launch at startup</span>
       <input type="checkbox" :checked="autostart" @change="onAutostart" />
     </label>
+    <button v-if="welcome" type="button" class="start" :disabled="!canStart" @click="start">Start</button>
   </main>
 </template>
 
@@ -178,5 +190,21 @@ select {
   margin: 4px 0 0;
   font-size: 12px;
   opacity: 0.7;
+}
+.start {
+  margin-top: 16px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: #e0a766;
+  color: #2b2118;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.start:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 </style>

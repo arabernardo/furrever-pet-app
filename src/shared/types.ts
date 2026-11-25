@@ -54,6 +54,8 @@ export interface AppSettings {
   gender: Gender
   ownerName: string
   checkIns: boolean
+  /** False until the first-run welcome has been completed. */
+  onboarded: boolean
 }
 
 export interface SavedPosition {

@@ -24,4 +24,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   gender: 'boy',
   ownerName: '',
   checkIns: true,
+  onboarded: false,
 }
