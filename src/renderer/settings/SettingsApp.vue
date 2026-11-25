@@ -4,11 +4,14 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart'
 import { loadSettings, onSettingsChanged, saveSettings } from '@/main/settingsStore'
 import { listPetConfigs } from '@/pets/registry'
-import { DEFAULT_SETTINGS, PET_SIZES } from '@/shared/defaults'
+import { DEFAULT_SETTINGS, GENDERS, MAX_NAME_LENGTH, PET_SIZES, SLEEP_OPTIONS } from '@/shared/defaults'
 import type { AppSettings } from '@/shared/types'
 
 const pets = listPetConfigs().map(({ id, name }) => ({ id, name }))
 const sizes = PET_SIZES
+const genders = GENDERS
+const sleepOptions = SLEEP_OPTIONS
+const maxName = MAX_NAME_LENGTH
 const form = reactive<AppSettings>({ ...DEFAULT_SETTINGS })
 const autostart = ref(false)
 let ready = false
@@ -63,6 +66,25 @@ onBeforeUnmount(() => unlisten?.())
       </select>
     </label>
 
+    <label class="row">
+      <span>Pet name</span>
+      <input v-model.lazy.trim="form.petName" type="text" :maxlength="maxName" placeholder="Name your pet" />
+    </label>
+
+    <div class="row">
+      <span>Boy or girl</span>
+      <div class="seg">
+        <button v-for="g in genders" :key="g" type="button" :class="{ on: form.gender === g }" @click="form.gender = g">{{ g }}</button>
+      </div>
+    </div>
+    <p class="hint">Boys wear a blue collar, girls a pink one.</p>
+
+    <label class="row">
+      <span>Your name</span>
+      <input v-model.lazy.trim="form.ownerName" type="text" :maxlength="maxName" placeholder="So your pet can greet you" />
+    </label>
+    <label class="row"><span>Pet checks in on me</span><input v-model="form.checkIns" type="checkbox" /></label>
+
     <div class="row">
       <span>Size</span>
       <div class="seg">
@@ -78,7 +100,13 @@ onBeforeUnmount(() => unlisten?.())
 
     <label class="row"><span>Mute sounds</span><input v-model="form.muted" type="checkbox" /></label>
     <label class="row"><span>Wander around</span><input v-model="form.wandering" type="checkbox" /></label>
-    <label class="row"><span>Fall asleep when idle</span><input v-model="form.sleepEnabled" type="checkbox" /></label>
+    <label class="row">
+      <span>Fall asleep after</span>
+      <select v-model.number="form.sleepAfterMin">
+        <option v-for="o in sleepOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+      </select>
+    </label>
+    <p class="hint">Time with no clicks, hovers or drags. "Never" also stops random naps.</p>
     <label class="row">
       <span>Launch at startup</span>
       <input type="checkbox" :checked="autostart" @change="onAutostart" />
@@ -140,5 +168,15 @@ select {
   background: #e0a766;
   border-color: #e0a766;
   color: #2b2118;
+}
+.row input[type='text'] {
+  flex: 1.4;
+  min-width: 0;
+  padding: 4px 8px;
+}
+.hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  opacity: 0.7;
 }
 </style>

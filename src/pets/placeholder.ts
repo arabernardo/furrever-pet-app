@@ -15,6 +15,8 @@ interface Pose {
   phase: number
   t: number
   extra?: 'zzz' | 'bang'
+  /** Frame parity (0 or 1). Drives the tongue in and out. */
+  beat: number
 }
 
 const INK = '#2b2118'
@@ -22,7 +24,7 @@ const INK = '#2b2118'
 function poseFor(anim: PetState, i: number, n: number): Pose {
   const t = n > 1 ? i / n : 0
   const wave = Math.sin(t * Math.PI * 2)
-  const base: Pose = { bob: 0, tilt: 0, stretch: 1, eyes: 'open', mouth: 'smile', tail: wave * 0.4, legs: 'stand', phase: 0, t }
+  const base: Pose = { bob: 0, tilt: 0, stretch: 1, eyes: 'open', mouth: 'smile', tail: wave * 0.4, legs: 'stand', phase: 0, t, beat: i % 2 }
   switch (anim) {
     case 'idle':
       return { ...base, bob: wave * 1.5 }
@@ -166,7 +168,46 @@ function drawEye(ctx: CanvasRenderingContext2D, x: number, y: number, kind: Eyes
   }
 }
 
-function drawFace(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, cx: number, hy: number, pose: Pose): void {
+// Where each eye shape has its outer corner (dx outward, dy down from the eye centre),
+// and which way the lashes point (-1 up, 1 down). Closed sleeping eyes get lashes pointing down.
+const LASH_SPEC: Record<Eyes, [number, number, number]> = {
+  open: [3.3, -3.8, -1],
+  wide: [5.7, -6.3, -1],
+  closed: [5, 0, -1],
+  happy: [4.8, 1.4, -1],
+  sleep: [4.8, 0.6, 1],
+}
+
+/** Three lash flicks fanning out from the outer corner of one eye. side: -1 left eye, 1 right eye. */
+function drawLashes(ctx: CanvasRenderingContext2D, x: number, y: number, kind: Eyes, side: number): void {
+  const [dx, dy, v] = LASH_SPEC[kind]
+  const bx = x + side * dx
+  const by = y + dy
+  ctx.strokeStyle = INK
+  ctx.lineWidth = 2
+  ctx.lineCap = 'round'
+  for (const [deg, len] of [[10, 6], [40, 7], [70, 6]] as const) {
+    const a = (deg * Math.PI) / 180
+    line(ctx, bx, by, bx + side * Math.cos(a) * len, by + v * Math.sin(a) * len)
+  }
+}
+
+/** Panting shows when the pet has a tongue and is calm or happy (not asleep, surprised or dangling). */
+function isPanting(p: PlaceholderConfig, pose: Pose): boolean {
+  return !!p.tongue && (pose.mouth === 'smile' || pose.mouth === 'open')
+}
+
+/** Tongue hanging below the mouth. Short and long alternate frame by frame. */
+function drawTongue(ctx: CanvasRenderingContext2D, cx: number, my: number, beat: number): void {
+  const len = beat ? 11 : 7
+  ellipse(ctx, cx, my + 4 + len / 2, 4.6, len / 2 + 2, '#f06a7e')
+  ctx.strokeStyle = '#d9485f'
+  ctx.lineWidth = 1.2
+  ctx.lineCap = 'round'
+  line(ctx, cx, my + 6, cx, my + 2 + len)
+}
+
+function drawFace(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, cx: number, hy: number, pose: Pose, lashes: boolean): void {
   if (p.style === 'dog') ellipse(ctx, cx - 14, hy - 2, 11, 12, p.accent) // eye patch
   if (p.style === 'cat') {
     ctx.strokeStyle = p.accent
@@ -176,6 +217,10 @@ function drawFace(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, cx: numbe
   }
   drawEye(ctx, cx - 14, hy + 2, pose.eyes)
   drawEye(ctx, cx + 14, hy + 2, pose.eyes)
+  if (lashes) {
+    drawLashes(ctx, cx - 14, hy + 2, pose.eyes, -1)
+    drawLashes(ctx, cx + 14, hy + 2, pose.eyes, 1)
+  }
   ellipse(ctx, cx - 23, hy + 13, 5, 3.5, 'rgba(255,120,140,.35)')
   ellipse(ctx, cx + 23, hy + 13, 5, 3.5, 'rgba(255,120,140,.35)')
 
@@ -193,6 +238,10 @@ function drawFace(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, cx: numbe
     }
   }
 
+    if (isPanting(p, pose)) {
+    ellipse(ctx, cx, my + 4, 6, 5.5, '#7a2e3a') // open mouth, the tongue is drawn later
+    return
+  }
   ctx.strokeStyle = INK
   ctx.lineWidth = 2
   ctx.lineCap = 'round'
@@ -231,7 +280,19 @@ function drawExtras(ctx: CanvasRenderingContext2D, kind: Pose['extra'], t: numbe
   }
 }
 
-function drawPet(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, pose: Pose): void {
+/** Collar under the chin plus a gold tag. Drawn inside the pet's transform, so it moves with the head. */
+function drawCollar(ctx: CanvasRenderingContext2D, color: string, cx: number, hy: number): void {
+  ctx.strokeStyle = color
+  ctx.lineWidth = 7
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(cx - 21, hy + 22)
+  ctx.quadraticCurveTo(cx, hy + 42, cx + 21, hy + 22)
+  ctx.stroke()
+  ellipse(ctx, cx, hy + 34, 4.5, 4.5, '#ffd24a')
+}
+
+function drawPet(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, pose: Pose, collar?: string, lashes = false): void {
   const lie = pose.legs === 'lie'
   const sit = pose.legs === 'sit'
   const hang = pose.legs === 'dangle'
@@ -255,14 +316,16 @@ function drawPet(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, pose: Pose
   drawFeet(ctx, pose.legs, pose.phase, p.belly)
   drawEars(ctx, p.style, cx, headY, p.body, p.accent, pose.eyes === 'wide' ? 0.2 : 0.5)
   ellipse(ctx, cx, headY, 32, 29, p.body)
-  drawFace(ctx, p, cx, headY, pose)
+    drawFace(ctx, p, cx, headY, pose, lashes)
+  if (collar) drawCollar(ctx, collar, cx, headY)
+  if (isPanting(p, pose)) drawTongue(ctx, cx, headY + 14, pose.beat)
   ctx.restore()
 
   drawExtras(ctx, pose.extra, pose.t)
 }
 
 /** Builds a horizontal sprite strip (frames × frame size, rendered at 2× for sharpness). */
-export function createPlaceholderSheet(cfg: PetConfig, anim: PetState, frames: number): HTMLCanvasElement {
+export function createPlaceholderSheet(cfg: PetConfig, anim: PetState, frames: number, collar?: string, lashes = false, tongue = false): HTMLCanvasElement {
   const k = 2
   const { width: w, height: h } = cfg.frame
   const canvas = document.createElement('canvas')
@@ -271,11 +334,12 @@ export function createPlaceholderSheet(cfg: PetConfig, anim: PetState, frames: n
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('2D canvas not available')
   const unit = (Math.min(w, h) / 128) * k
+  const ph = { ...cfg.placeholder, tongue } // the config flag says "can pant"; this call decides whether to draw it
   for (let i = 0; i < frames; i++) {
     ctx.save()
     ctx.translate(i * w * k + (w * k - 128 * unit) / 2, (h * k - 128 * unit) / 2)
     ctx.scale(unit, unit)
-    drawPet(ctx, cfg.placeholder, poseFor(anim, i, frames))
+    drawPet(ctx, ph, poseFor(anim, i, frames), collar, lashes)
     ctx.restore()
   }
   return canvas

@@ -1,9 +1,13 @@
 export const PET_STATES = ['idle', 'blink', 'walk-left', 'walk-right', 'sit', 'sleep', 'happy', 'surprised', 'dangle'] as const
 export type PetState = (typeof PET_STATES)[number]
 export type PetSize = 'small' | 'medium' | 'large'
-export const SOUND_KINDS = ['click', 'doubleClick', 'pickup', 'sneeze', 'growl'] as const
+export const SOUND_KINDS = ['click', 'doubleClick', 'pickup', 'sneeze', 'growl', 'pant'] as const
 export type PetSoundKind = (typeof SOUND_KINDS)[number]
-export type SynthKind = 'bark' | 'yelp' | 'purr' | 'mew' | 'whine' | 'sneeze' | 'growl' | 'hiss'
+export type SynthKind = 'bark' | 'yelp' | 'purr' | 'mew' | 'whine' | 'sneeze' | 'growl' | 'hiss' | 'pant'
+export type Gender = 'boy' | 'girl'
+
+/** Minutes of no interaction before the pet falls asleep. 0 = never. */
+export type SleepAfter = 0 | 5 | 15 | 30
 
 export interface AnimationConfig {
   /** Horizontal strip, path relative to the pet folder. Omit to use the generated placeholder. */
@@ -13,6 +17,8 @@ export interface AnimationConfig {
   frames: number
   fps: number
   loop: boolean
+  /** Optional per-gender sheets for real art with the collar drawn in. Falls back to `sheet`. */
+  genderSheets?: Partial<Record<Gender, string>>
 }
 
 export interface PlaceholderConfig {
@@ -20,6 +26,8 @@ export interface PlaceholderConfig {
   body: string
   accent: string
   belly: string
+  /** Draw an open mouth with a panting tongue (dogs). */
+  tongue?: boolean
 }
 
 export interface PetConfig {
@@ -41,7 +49,11 @@ export interface AppSettings {
   volume: number
   muted: boolean
   wandering: boolean
-  sleepEnabled: boolean
+  sleepAfterMin: SleepAfter
+  petName: string
+  gender: Gender
+  ownerName: string
+  checkIns: boolean
 }
 
 export interface SavedPosition {
@@ -59,3 +71,17 @@ export interface Rect {
 
 export const SETTINGS_CHANGED_EVENT = 'settings-changed'
 export const SHOW_PET_EVENT = 'show-pet'
+export const BUBBLE_READY_EVENT = 'bubble-ready'
+export const BUBBLE_CHOICE_EVENT = 'bubble-choice'
+export const BUBBLE_WIDTH = 200
+
+export interface BubbleChoice {
+  label: string
+  reply: string
+}
+
+export interface BubbleContent {
+  id: number
+  text: string
+  choices: BubbleChoice[]
+}

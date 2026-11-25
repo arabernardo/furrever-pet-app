@@ -3,10 +3,12 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { loadPet, type LoadedPet } from '@/pets/loader'
+import { greetingPrompt, randomPrompt, type Persona, type Prompt, type Reaction } from '@/pets/dialogue'
+import { loadPet, type LoadedAnimation, type LoadedPet } from '@/pets/loader'
 import { listPetConfigs } from '@/pets/registry'
 import { PetRenderer } from '@/pets/renderer'
-import { PetStateMachine } from '@/pets/stateMachine'
+import { PetStateMachine, type MachineOptions } from '@/pets/stateMachine'
+import { BubbleWindow } from '@/main/bubbleWindow'
 import { ClickThrough } from '@/main/clickThrough'
 import { PetWindow } from '@/main/petWindow'
 import { loadPosition, loadSettings, onSettingsChanged, saveSettings } from '@/main/settingsStore'
@@ -24,6 +26,17 @@ const DOUBLE_CLICK_MS = 300
 const DRAG_THRESHOLD = 4
 const POLL_AWAKE_MS = 50
 const POLL_ASLEEP_MS = 250
+// Check-ins: a random delay between 30 and 90 minutes. Lower these while testing.
+const CHECKIN_MIN_MS = 30 * 60_000
+const CHECKIN_SPREAD_MS = 60 * 60_000
+const GREETING_DELAY_MS = 1500
+const BUBBLE_TTL_MS = 15_000
+const GREETING_TTL_MS = 6_000
+const REPLY_TTL_MS = 4_000
+// Panting: starts every 3-6 minutes and lasts 8 seconds. Lower these while testing.
+const PANT_EVERY_MIN_MS = 3 * 60_000
+const PANT_EVERY_SPREAD_MS = 3 * 60_000
+const PANT_DURATION_MS = 8_000
 
 interface Press {
   sx: number
@@ -50,14 +63,20 @@ let petWindow: PetWindow
 let walker: Walker
 let machine: PetStateMachine
 let clickThrough: ClickThrough
+let bubble: BubbleWindow
 let tray: PetTray | undefined
 
 let press: Press | null = null
 let holdTimer: number | undefined
 let hoverTimer: number | undefined
-let lastClickAt = 0
-
 let sneezeTimer: number | undefined
+let checkInTimer: number | undefined
+let bubbleTimer: number | undefined
+let pantTimer: number | undefined
+let pantEndTimer: number | undefined
+let panting = false
+let currentPrompt: Prompt | null = null
+let lastClickAt = 0
 const recentTaps: number[] = []
 
 const trayActions: TrayActions = {
@@ -66,16 +85,6 @@ const trayActions: TrayActions = {
   toggleMute: () => void saveSettings({ ...settings, muted: !settings.muted }),
   openSettings: () => void openSettings(),
   quit: () => void quit(),
-}
-
-/** Occasional sneeze while the pet is awake and calm. Stops completely when hidden. */
-function scheduleSneeze(): void {
-  window.clearTimeout(sneezeTimer)
-  if (!visible) return
-  sneezeTimer = window.setTimeout(() => {
-    if (machine.state === 'idle' || machine.state === 'sit') audio.play('sneeze')
-    scheduleSneeze()
-  }, 45_000 + Math.random() * 90_000)
 }
 
 function trayState(): TrayState {
@@ -87,6 +96,15 @@ function trayState(): TrayState {
   }
 }
 
+function persona(): Persona {
+  return { petName: settings.petName || loaded?.config.name || 'Buddy', ownerName: settings.ownerName }
+}
+
+/** Wandering is paused while the pet is talking, so the bubble never gets left behind. */
+function machineOptions(): MachineOptions {
+  return { wandering: settings.wandering && !currentPrompt, sleepAfterMs: settings.sleepAfterMin * 60_000 }
+}
+
 // ---------- boot / settings ----------
 
 async function boot(): Promise<void> {
@@ -95,8 +113,10 @@ async function boot(): Promise<void> {
   audio = new PetAudio()
   petWindow = new PetWindow()
   walker = new Walker(petWindow)
+  bubble = new BubbleWindow(petWindow, () => window.devicePixelRatio || 1)
+  bubble.onChoice = onChoice
   renderer.onFinish = () => machine.animationFinished()
-  machine = new PetStateMachine({ onEnter: handleEnter }, { wandering: settings.wandering, sleepEnabled: settings.sleepEnabled })
+  machine = new PetStateMachine({ onEnter: handleEnter }, machineOptions())
   clickThrough = new ClickThrough((x, y) => renderer.hitTest(x, y), handleHit)
 
   await applySettings(settings, true)
@@ -113,6 +133,11 @@ async function boot(): Promise<void> {
     await getCurrentWindow().onScaleChanged(() => void resizeWindow(false)),
   )
   await setVisible(true)
+
+  // Greet the owner shortly after launch.
+  window.setTimeout(() => {
+    if (canTalk()) void say(greetingPrompt(persona()))
+  }, GREETING_DELAY_MS)
 }
 
 async function applySettings(next: AppSettings, first = false): Promise<void> {
@@ -120,10 +145,12 @@ async function applySettings(next: AppSettings, first = false): Promise<void> {
   settings = next
   audio.volume = next.volume
   audio.muted = next.muted
-  machine.setOptions({ wandering: next.wandering, sleepEnabled: next.sleepEnabled })
+  machine.setOptions(machineOptions())
   const petChanged = first || next.petId !== prev.petId
-  if (petChanged) await switchPet(next.petId)
+  // A gender change reloads the sprites so the collar colour updates.
+  if (petChanged || next.gender !== prev.gender) await switchPet(next.petId)
   if (petChanged || next.size !== prev.size) await resizeWindow(!first)
+  if (next.checkIns !== prev.checkIns) scheduleCheckIn()
   await tray?.update(trayState())
 }
 
@@ -133,9 +160,9 @@ async function switchPet(id: string): Promise<void> {
     console.error('[pets] no pets found in /assets/pets')
     return
   }
-  loaded = await loadPet(cfg)
+  loaded = await loadPet(cfg, settings.gender)
   audio.setPet(loaded)
-  if (visible) renderer.play(loaded.animations[machine.state])
+  if (visible) renderer.play(animFor(machine.state))
 }
 
 async function resizeWindow(anchor: boolean): Promise<void> {
@@ -158,10 +185,17 @@ async function setVisible(next: boolean): Promise<void> {
     machine.resume()
     clickThrough.start(POLL_AWAKE_MS)
     scheduleSneeze()
+    schedulePant()
+    scheduleCheckIn()
   } else {
     // Hidden: stop polling, timers and drawing completely.
     clickThrough.stop()
     window.clearTimeout(sneezeTimer)
+    window.clearTimeout(pantTimer)
+    window.clearTimeout(pantEndTimer)
+    setPanting(false)
+    window.clearTimeout(checkInTimer)
+    await endTalk()
     walker.stop()
     machine.pause()
     renderer.stop()
@@ -180,11 +214,128 @@ async function quit(): Promise<void> {
   await invoke('quit_app')
 }
 
+// ---------- talking ----------
+
+/** Only talk when the pet is awake, calm, visible and not being touched. */
+function canTalk(): boolean {
+  return visible && !currentPrompt && !press && (machine.state === 'idle' || machine.state === 'sit')
+}
+
+function scheduleCheckIn(delayMs?: number): void {
+  window.clearTimeout(checkInTimer)
+  if (!visible || !settings.checkIns) return
+  const delay = delayMs ?? CHECKIN_MIN_MS + Math.random() * CHECKIN_SPREAD_MS
+  checkInTimer = window.setTimeout(() => {
+    if (canTalk()) {
+      void say(randomPrompt(persona()))
+      scheduleCheckIn()
+    } else {
+      scheduleCheckIn(60_000) // asleep or busy: try again in a minute
+    }
+  }, delay)
+}
+
+async function say(prompt: Prompt): Promise<void> {
+  currentPrompt = prompt
+  machine.setOptions(machineOptions())
+  if (prompt.kind !== 'greeting') audio.play('click') // a little bark/purr to get attention
+  machine.click() // happy animation
+  window.clearTimeout(bubbleTimer)
+  bubbleTimer = window.setTimeout(() => void endTalk(), prompt.choices.length > 0 ? BUBBLE_TTL_MS : GREETING_TTL_MS)
+  await bubble.open({ text: prompt.text, choices: prompt.choices.map(({ label, reply }) => ({ label, reply })) })
+}
+
+function onChoice(index: number): void {
+  const choice = currentPrompt?.choices[index]
+  if (!choice) return
+  react(choice.react)
+  window.clearTimeout(bubbleTimer)
+  bubbleTimer = window.setTimeout(() => void endTalk(), REPLY_TTL_MS)
+}
+
+async function endTalk(): Promise<void> {
+  window.clearTimeout(bubbleTimer)
+  currentPrompt = null
+  if (machine) machine.setOptions(machineOptions())
+  await bubble?.close()
+}
+
+function react(r: Reaction): void {
+  if (r === 'happy') {
+    machine.click()
+    audio.play('click')
+  } else if (r === 'hearts') {
+    renderer.burstHearts()
+  } else if (r === 'play') {
+    playTime()
+  }
+}
+
+/** A short play session: three happy hops with hearts. */
+function playTime(): void {
+  let hops = 0
+  const hop = (): void => {
+    if (!visible || hops >= 3) return
+    hops++
+    machine.click()
+    audio.play('click')
+    renderer.burstHearts()
+    window.setTimeout(hop, 1100)
+  }
+  hop()
+}
+
+/** Occasional sneeze while the pet is awake and calm. Stops completely when hidden. */
+function scheduleSneeze(): void {
+  window.clearTimeout(sneezeTimer)
+  if (!visible) return
+  sneezeTimer = window.setTimeout(() => {
+    if (machine.state === 'idle' || machine.state === 'sit') audio.play('sneeze')
+    scheduleSneeze()
+  }, 45_000 + Math.random() * 90_000)
+}
+
+/** The animation set to use right now: tongue out while panting, otherwise the normal one. */
+function animFor(state: PetState): LoadedAnimation {
+  const set = panting && loaded?.pantAnimations ? loaded.pantAnimations : loaded!.animations
+  return set[state]
+}
+
+function setPanting(on: boolean): void {
+  if (panting === on) return
+  panting = on
+  if (loaded && visible) renderer.play(animFor(machine.state)) // swap sheets now
+}
+
+/** Pants for a few seconds, with "heh, heh, heh" at the start and again halfway. */
+function startPanting(): void {
+  setPanting(true)
+  for (const ms of [0, 3500]) {
+    window.setTimeout(() => {
+      if (panting) audio.play('pant')
+    }, ms)
+  }
+  window.clearTimeout(pantEndTimer)
+  pantEndTimer = window.setTimeout(() => setPanting(false), PANT_DURATION_MS)
+}
+
+/** Every few minutes, if the pet can pant and is awake and calm. Stops completely when hidden. */
+function schedulePant(): void {
+  window.clearTimeout(pantTimer)
+  if (!visible) return
+  pantTimer = window.setTimeout(() => {
+    const s = machine.state
+    const calm = s === 'idle' || s === 'sit' || s === 'walk-left' || s === 'walk-right'
+    if (calm && loaded?.pantAnimations && !panting) startPanting()
+    schedulePant()
+  }, PANT_EVERY_MIN_MS + Math.random() * PANT_EVERY_SPREAD_MS)
+}
+
 // ---------- state machine hook ----------
 
 function handleEnter(state: PetState): void {
   if (!loaded) return
-  renderer.play(loaded.animations[state])
+  renderer.play(animFor(state))
   if (state === 'walk-left' || state === 'walk-right') {
     const dpr = window.devicePixelRatio || 1
     void walker.start(state === 'walk-left' ? -1 : 1, WALK_SPEED * dpr, () => machine.blocked())
@@ -239,6 +390,7 @@ function onPointerMove(e: PointerEvent): void {
     walker.stop()
     machine.dragStart()
     audio.play('pickup')
+    if (currentPrompt) void endTalk() // the bubble can't follow a drag, so dismiss it
   }
   const dpr = window.devicePixelRatio || 1
   petWindow.dragTo(p.rect.x + dx * dpr, p.rect.y + dy * dpr)
@@ -286,8 +438,13 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  clickThrough?.stop()
   window.clearTimeout(sneezeTimer)
+  window.clearTimeout(pantTimer)
+  window.clearTimeout(pantEndTimer)
+  window.clearTimeout(checkInTimer)
+  window.clearTimeout(bubbleTimer)
+  void bubble?.close()
+  clickThrough?.stop()
   walker?.stop()
   machine?.pause()
   renderer?.stop()

@@ -44,6 +44,7 @@ Each sound kind can have several variants. One is picked at random and never the
 | `pickup` | the pet is picked up (drag starts) | `whine1.mp3`, `whine2.mp3` |
 | `sneeze` | randomly every ~45–135 s while awake and idle or sitting | `sneeze1.mp3` |
 | `growl` | poked 6 times within ~2.5 s (annoyed) | `growl1.mp3` |
+| `pant` | the dog's "heh, heh, heh", twice during each panting session (every ~3–6 min, lasting ~8 s) | none yet, synth only |
 
 Behavior
 - Only one sound plays at a time. A new sound stops the previous one.
@@ -80,6 +81,35 @@ Licensing
 - CC BY files require attribution and a note if the file was modified (trimmed, converted, normalized).
 - Credits must reach end users, not just the repo. Ship `CREDITS.md` with the installer or show it in Settings.
 
+## Name, gender and check-ins (v0.1.1)
+
+Settings: pet name, boy or girl, your name, and "Pet checks in on me".
+
+- **Collar and lashes:** boys get a blue collar. Girls get a pink collar and eyelashes. The placeholder art draws both
+  automatically. Real sprite art is not recoloured. To show them with real art, draw them into the sprites and give each
+  animation one sheet per gender in `config.json`:
+  `"idle": { "sheet": "sprites/idle.png", "genderSheets": { "boy": "sprites/idle-boy.png", "girl": "sprites/idle-girl.png" }, "frames": 4, "fps": 3, "loop": true }`
+  Without `genderSheets`, the plain `sheet` is used for both.
+- **Greeting:** shortly after launch, based on the time of day, using your name and the pet's name.
+- **Check-ins:** at random every 30 to 90 minutes the pet asks how you are, whether you drank water, or
+  if you want to play. Late at night it only asks if it's time to rest. Edit the lines in `src/pets/dialogue.ts`.
+- The pet only talks while awake, idle or sitting, and visible. Dragging it dismisses the bubble.
+- The speech bubble is a separate small window (`bubble.html`). Near the top of the screen it appears below
+  the pet, with its tail still pointing down.
+- Names are limited to 20 characters. Everything stays on the device.
+
+## Panting
+
+Pets with `"tongue": true` in `placeholder` pant for about 8 seconds every 3 to 6 minutes: open mouth, tongue
+pulsing, and the `pant` sound. The rest of the time the mouth is closed. Timings are constants at the top of
+`PetApp.vue`. With real sprite art, the tongue isn't drawn, so only the sound plays.
+
+## Sleep timer
+
+Settings → "Fall asleep after": 5 minutes (default), 15 minutes, 30 minutes or Never. Idle means no clicks,
+hovers or drags. Never also disables the short random naps. Any interaction wakes the pet. Settings saved by
+v0.1.0 with sleep turned off migrate to Never. Settings with sleep on use the new 5-minute default.
+
 ## How to add a new pet
 1. Copy `assets/pets/dog` to `assets/pets/<your-pet>` (the folder name is the pet's id).
 2. Edit `config.json`:
@@ -88,9 +118,9 @@ Licensing
 |---|---|
 | `name` | Label in the tray and settings |
 | `frame.width/height` | Logical px size of one frame at "medium" (default 128×128) |
-| `placeholder` | `style` (`dog`/`cat`/`blob`) + `body`/`accent`/`belly` colors, used when art is missing |
-| `sounds.click` / `doubleClick` / `pickup` / `sneeze` / `growl` | File names inside `sounds/`, 2–3 variants recommended for frequent sounds. All optional |
-| `sounds.synth` | Fallback per kind: `bark`, `yelp`, `whine`, `growl`, `sneeze`, `purr`, `mew`, `hiss` or `none`. Optional |
+| `placeholder` | `style` (`dog`/`cat`/`blob`) + `body`/`accent`/`belly`/`tongue` colors, used when art is missing |
+| `sounds.click` / `doubleClick` / `pickup` / `sneeze` / `growl` / `pant` | File names inside `sounds/`, 2–3 variants recommended for frequent sounds. All optional |
+| `sounds.synth` | Fallback per kind: `bark`, `yelp`, `whine`, `growl`, `sneeze`, `purr`, `mew`, `hiss`, `pant` or `none`. Optional |
 | `animations.<state>` | `sheet`, `frames`, `fps`, `loop`; or `mirrorOf` to flip another animation |
 
 States: `idle, blink, walk-left, walk-right, sit, sleep, happy, surprised, dangle`.

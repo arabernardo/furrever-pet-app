@@ -2,14 +2,14 @@ import type { PetState } from '@/shared/types'
 
 export interface MachineOptions {
   wandering: boolean
-  sleepEnabled: boolean
+  /** Milliseconds without interaction before sleeping. 0 = never sleep. */
+  sleepAfterMs: number
 }
 
 export interface MachineHooks {
   onEnter: (state: PetState) => void
 }
 
-const SLEEP_AFTER_MS = 120_000
 const rand = (min: number, max: number): number => min + Math.random() * (max - min)
 
 /** Pure logic: no DOM, no Tauri. Timers are cleared on every transition, so states can't overlap. */
@@ -44,7 +44,7 @@ export class PetStateMachine {
   setOptions(opts: MachineOptions): void {
     this.opts = opts
     if (this.paused) return
-    if (!opts.sleepEnabled && this.state === 'sleep') this.enter('idle')
+    if (opts.sleepAfterMs <= 0 && this.state === 'sleep') this.enter('idle')
     if (!opts.wandering && this.isWalking()) this.enter('idle')
     this.armSleepTimer()
   }
@@ -94,8 +94,8 @@ export class PetStateMachine {
 
   private armSleepTimer(): void {
     window.clearTimeout(this.sleepTimer)
-    if (this.paused || !this.opts.sleepEnabled) return
-    this.sleepTimer = window.setTimeout(() => this.fallAsleep(), SLEEP_AFTER_MS)
+    if (this.paused || this.opts.sleepAfterMs <= 0) return
+    this.sleepTimer = window.setTimeout(() => this.fallAsleep(), this.opts.sleepAfterMs)
   }
 
   private fallAsleep(): void {
@@ -145,7 +145,7 @@ export class PetStateMachine {
   }
 
   private leaveSit(): void {
-    if (this.opts.sleepEnabled && Math.random() < 0.15) {
+    if (this.opts.sleepAfterMs > 0 && Math.random() < 0.15) {
       this.napping = true
       this.enter('sleep')
     } else {

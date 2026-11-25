@@ -232,7 +232,45 @@ const hiss: Builder = (ctx, out) => {
   return [noise]
 }
 
-const BUILDERS: Record<SynthKind, Builder> = { bark, yelp, mew, purr, whine, sneeze, growl, hiss }
+// Three breathy "heh" bursts: band-passed noise plus a faint voiced layer for the "eh"
+const pant: Builder = (ctx, out, pitch) => {
+  const t = ctx.currentTime
+  const noise = noiseSource(ctx, 1.2)
+  const band = ctx.createBiquadFilter()
+  band.type = 'bandpass'
+  band.frequency.value = 1500 * pitch
+  band.Q.value = 1.1
+  const voice = ctx.createOscillator()
+  voice.type = 'sawtooth'
+  voice.frequency.value = 240 * pitch
+  const formant = ctx.createBiquadFilter()
+  formant.type = 'bandpass'
+  formant.frequency.value = 800
+  formant.Q.value = 2
+  const voiceGain = ctx.createGain()
+  voiceGain.gain.value = 0.12
+  const env = ctx.createGain()
+  env.gain.setValueAtTime(0.0001, t)
+  for (let k = 0; k < 3; k++) {
+    const s = t + k * 0.3
+    env.gain.setValueAtTime(0.0001, s)
+    env.gain.exponentialRampToValueAtTime(1.2, s + 0.04)
+    env.gain.exponentialRampToValueAtTime(0.0001, s + 0.17)
+  }
+  noise.connect(band)
+  band.connect(env)
+  voice.connect(formant)
+  formant.connect(voiceGain)
+  voiceGain.connect(env)
+  env.connect(out)
+  noise.start(t)
+  voice.start(t)
+  noise.stop(t + 1)
+  voice.stop(t + 1)
+  return [noise, voice]
+}
+
+const BUILDERS: Record<SynthKind, Builder> = { bark, yelp, mew, purr, whine, sneeze, growl, hiss, pant }
 
 export function buildSynth(kind: SynthKind, ctx: AudioContext, out: AudioNode, pitch: number): AudioScheduledSourceNode[] {
   return BUILDERS[kind](ctx, out, pitch)

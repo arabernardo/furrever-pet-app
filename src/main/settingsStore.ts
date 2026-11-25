@@ -1,14 +1,24 @@
 import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { load, type Store } from '@tauri-apps/plugin-store'
-import { DEFAULT_SETTINGS, PET_SIZES } from '@/shared/defaults'
+import { DEFAULT_SETTINGS, GENDERS, MAX_NAME_LENGTH, PET_SIZES, SLEEP_OPTIONS } from '@/shared/defaults'
+import { SETTINGS_CHANGED_EVENT, type AppSettings, type SavedPosition, type SleepAfter } from '@/shared/types'
 import { listPetConfigs } from '@/pets/registry'
-import { SETTINGS_CHANGED_EVENT, type AppSettings, type SavedPosition } from '@/shared/types'
 
 let store: Store | null = null
 
 async function getStore(): Promise<Store> {
   if (!store) store = await load('settings.json', { defaults: {}, autoSave: false })
   return store
+}
+
+const cleanName = (v: unknown): string => (typeof v === 'string' ? v.slice(0, MAX_NAME_LENGTH) : '')
+
+function cleanSleep(raw: Partial<AppSettings> | null | undefined): SleepAfter {
+  const match = SLEEP_OPTIONS.find((o) => o.value === raw?.sleepAfterMin)
+  if (match) return match.value
+  // Settings saved by v0.1.0 had a sleepEnabled flag: off there means 'never' here
+  if ((raw as { sleepEnabled?: boolean } | null | undefined)?.sleepEnabled === false) return 0
+  return DEFAULT_SETTINGS.sleepAfterMin
 }
 
 function sanitize(raw: Partial<AppSettings> | null | undefined): AppSettings {
@@ -21,7 +31,11 @@ function sanitize(raw: Partial<AppSettings> | null | undefined): AppSettings {
     volume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : DEFAULT_SETTINGS.volume,
     muted: !!s.muted,
     wandering: !!s.wandering,
-    sleepEnabled: !!s.sleepEnabled,
+    sleepAfterMin: cleanSleep(raw),
+    petName: cleanName(s.petName),
+    gender: GENDERS.includes(s.gender) ? s.gender : DEFAULT_SETTINGS.gender,
+    ownerName: cleanName(s.ownerName),
+    checkIns: !!s.checkIns,
   }
 }
 

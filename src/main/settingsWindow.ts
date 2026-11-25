@@ -14,7 +14,7 @@ export async function openSettings(): Promise<void> {
       url: 'settings.html',
       title: 'Furever Pet Settings',
       width: 380,
-      height: 480,
+      height: 640,
       resizable: false,
       maximizable: false,
       minimizable: false,
