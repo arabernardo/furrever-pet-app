@@ -65,6 +65,23 @@ export class PetWindow {
     return clampToScreens(x, y, w, h, this.screens)
   }
 
+  /**
+   * Bottom-right corner of the screen the pet is on (physical px), `margin` in from the edges.
+   * If that spot would cover the pet, the box goes just above the pet instead.
+   */
+  async cornerFor(w: number, h: number, margin: number): Promise<{ x: number; y: number }> {
+    await this.refreshScreens()
+    const r = await this.getRect()
+    const cx = r.x + r.w / 2
+    const cy = r.y + r.h / 2
+    const s = this.screens.find((m) => cx >= m.x && cx < m.x + m.w && cy >= m.y && cy < m.y + m.h) ?? this.screens[0]
+    if (!s) return { x: 0, y: 0 }
+    const x = s.x + s.w - w - margin
+    const y = s.y + s.h - h - margin
+    const covers = x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y
+    return this.clamp(x, covers ? r.y - h - margin : y, w, h)
+  }
+
   /** Resizes to a logical size. With `anchor`, the pet's bottom-centre stays put so it doesn't jump. */
   async setLogicalSize(w: number, h: number, anchor: boolean): Promise<void> {
     const before = anchor ? await this.getRect() : null

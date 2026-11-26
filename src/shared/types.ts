@@ -1,10 +1,11 @@
 export const PET_STATES = ['idle', 'blink', 'walk-left', 'walk-right', 'sit', 'sleep', 'happy', 'surprised', 'dangle'] as const
 export type PetState = (typeof PET_STATES)[number]
 export type PetSize = 'small' | 'medium' | 'large'
-export const SOUND_KINDS = ['click', 'doubleClick', 'pickup', 'sneeze', 'growl', 'pant'] as const
+export const SOUND_KINDS = ['click', 'doubleClick', 'pickup', 'sneeze', 'growl', 'pant', 'eat'] as const
 export type PetSoundKind = (typeof SOUND_KINDS)[number]
-export type SynthKind = 'bark' | 'yelp' | 'purr' | 'mew' | 'whine' | 'sneeze' | 'growl' | 'hiss' | 'pant'
+export type SynthKind = 'bark' | 'yelp' | 'purr' | 'mew' | 'whine' | 'sneeze' | 'growl' | 'hiss' | 'pant' | 'munch'
 export type Gender = 'boy' | 'girl'
+export type TreatKind = 'bone' | 'fish'
 
 /** Minutes of no interaction before the pet falls asleep. 0 = never. */
 export type SleepAfter = 0 | 5 | 15 | 30
@@ -41,6 +42,8 @@ export interface PetConfig {
     synth?: Partial<Record<PetSoundKind, SynthKind | 'none'>>
   }
   animations: Partial<Record<PetState, AnimationConfig>> & { idle: AnimationConfig }
+  /** What this pet is fed. Defaults to 'bone'. */
+  treat?: TreatKind
 }
 
 export interface AppSettings {
@@ -56,6 +59,7 @@ export interface AppSettings {
   checkIns: boolean
   /** False until the first-run welcome has been completed. */
   onboarded: boolean
+  notifications: boolean
 }
 
 export interface SavedPosition {
@@ -86,4 +90,16 @@ export interface BubbleContent {
   id: number
   text: string
   choices: BubbleChoice[]
+}
+
+export const TOAST_READY_EVENT = 'toast-ready'
+export const TOAST_CHOICE_EVENT = 'toast-choice'
+export const TOAST_WIDTH = 320
+
+export type ToastAction = 'feed' | 'play' | 'dismiss'
+
+export interface ToastContent {
+  id: number
+  title: string
+  text: string
 }

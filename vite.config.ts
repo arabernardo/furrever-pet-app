@@ -41,6 +41,7 @@ export default defineConfig(() => ({
         main: resolve(__dirname, 'index.html'),
         settings: resolve(__dirname, 'settings.html'),
         bubble: resolve(__dirname, 'bubble.html'),
+        toast: resolve(__dirname, 'toast.html'),
       },
     },
   },

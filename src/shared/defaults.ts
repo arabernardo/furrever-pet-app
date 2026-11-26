@@ -25,4 +25,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ownerName: '',
   checkIns: true,
   onboarded: false,
+  notifications: true,
 }

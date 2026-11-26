@@ -43,6 +43,7 @@ function sanitize(raw: Partial<AppSettings> | null | undefined): AppSettings {
     ownerName: cleanName(s.ownerName),
     checkIns: !!s.checkIns,
     onboarded: cleanOnboarded(raw),
+    notifications: !!s.notifications,
   }
 }
 

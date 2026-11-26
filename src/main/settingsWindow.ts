@@ -14,7 +14,7 @@ export async function openSettings(welcome = false): Promise<void> {
       url: welcome ? 'settings.html?welcome=1' : 'settings.html',
       title: welcome ? 'Welcome to Furever Pet' : 'Furever Pet Settings',
       width: 380,
-      height: 640,
+      height: 720,
       resizable: false,
       maximizable: false,
       minimizable: false,

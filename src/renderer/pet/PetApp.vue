@@ -3,7 +3,8 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { dayPart, greetingPrompt, randomPrompt, type Persona, type Prompt, type Reaction } from '@/pets/dialogue'
+import { dayPart, greetingPrompt, menuPrompt, offerPrompt, randomPrompt, type Persona, type Prompt, type Reaction } from '@/pets/dialogue'
+import { ToastWindow } from '@/main/toastWindow'
 import { loadPet, type LoadedAnimation, type LoadedPet } from '@/pets/loader'
 import { listPetConfigs } from '@/pets/registry'
 import { PetRenderer } from '@/pets/renderer'
@@ -17,7 +18,7 @@ import { PetTray, type TrayActions, type TrayState } from '@/main/tray'
 import { Walker } from '@/main/walker'
 import { PetAudio } from '@/renderer/audio'
 import { DEFAULT_SETTINGS, SIZE_SCALE } from '@/shared/defaults'
-import { SHOW_PET_EVENT, type AppSettings, type PetState, type Rect } from '@/shared/types'
+import { SHOW_PET_EVENT, type AppSettings, type PetState, type Rect, type ToastAction } from '@/shared/types'
 
 const WALK_SPEED = 36 // logical px per second
 const HOLD_MS = 600
@@ -29,6 +30,10 @@ const POLL_ASLEEP_MS = 250
 // Check-ins: a random delay between 30 and 90 minutes. Lower these while testing.
 const CHECKIN_MIN_MS = 30 * 60_000
 const CHECKIN_SPREAD_MS = 60 * 60_000
+// Feed/play notification: every 20-60 minutes, ignored after 20 s. Lower these while testing.
+const OFFER_MIN_MS = 5 * 60_000
+const OFFER_SPREAD_MS = 10 * 60_000
+const TOAST_TTL_MS = 20_000
 const GREETING_DELAY_MS = 1500
 const BUBBLE_TTL_MS = 15_000
 const GREETING_TTL_MS = 6_000
@@ -72,9 +77,18 @@ let hoverTimer: number | undefined
 let sneezeTimer: number | undefined
 let checkInTimer: number | undefined
 let bubbleTimer: number | undefined
+
+let panting = false
 let pantTimer: number | undefined
 let pantEndTimer: number | undefined
-let panting = false
+
+let toast: ToastWindow
+let offerTimer: number | undefined
+let toastTimer: number | undefined
+
+let acting = false // a feed or play session is running
+const actionTimers: number[] = []
+
 let currentPrompt: Prompt | null = null
 let lastClickAt = 0
 const recentTaps: number[] = []
@@ -85,6 +99,8 @@ const trayActions: TrayActions = {
   toggleMute: () => void saveSettings({ ...settings, muted: !settings.muted }),
   openSettings: () => void openSettings(),
   quit: () => void quit(),
+  feed: () => void showPet().then(feedPet),
+  play: () => void showPet().then(playPet),
 }
 
 function trayState(): TrayState {
@@ -115,6 +131,8 @@ async function boot(): Promise<void> {
   walker = new Walker(petWindow)
   bubble = new BubbleWindow(petWindow, () => window.devicePixelRatio || 1)
   bubble.onChoice = onChoice
+  toast = new ToastWindow(petWindow, () => window.devicePixelRatio || 1)
+  toast.onChoice = onToastChoice
   renderer.onFinish = () => machine.animationFinished()
   machine = new PetStateMachine({ onEnter: handleEnter }, machineOptions())
   clickThrough = new ClickThrough((x, y) => renderer.hitTest(x, y), handleHit)
@@ -150,6 +168,10 @@ async function applySettings(next: AppSettings, first = false): Promise<void> {
   if (petChanged || next.gender !== prev.gender) await switchPet(next.petId)
   if (petChanged || next.size !== prev.size) await resizeWindow(!first)
   if (next.checkIns !== prev.checkIns) scheduleCheckIn()
+  if (next.notifications !== prev.notifications) {
+    scheduleOffer()
+    if (!next.notifications) closeToast()
+  }
   // The welcome was just completed: now the pet can introduce itself
   if (!prev.onboarded && next.onboarded) scheduleGreeting()
   await tray?.update(trayState())
@@ -188,6 +210,7 @@ async function setVisible(next: boolean): Promise<void> {
     scheduleSneeze()
     schedulePant()
     scheduleCheckIn()
+    scheduleOffer()
   } else {
     // Hidden: stop polling, timers and drawing completely.
     clickThrough.stop()
@@ -196,8 +219,11 @@ async function setVisible(next: boolean): Promise<void> {
     window.clearTimeout(pantEndTimer)
     setPanting(false)
     window.clearTimeout(checkInTimer)
+    window.clearTimeout(offerTimer)
+    closeToast()
     await endTalk()
     walker.stop()
+    cancelActions()
     machine.pause()
     renderer.stop()
     await petWindow.hide()
@@ -283,22 +309,100 @@ function react(r: Reaction): void {
   } else if (r === 'hearts') {
     renderer.burstHearts()
   } else if (r === 'play') {
-    playTime()
+    playPet()
+  } else if (r === 'feed') {
+    feedPet()
   }
 }
 
-/** A short play session: three happy hops with hearts. */
-function playTime(): void {
-  let hops = 0
-  const hop = (): void => {
-    if (!visible || hops >= 3) return
-    hops++
+/** Runs `fn` after `ms`, unless the pet was hidden in the meantime. */
+function later(ms: number, fn: () => void): void {
+  actionTimers.push(
+    window.setTimeout(() => {
+      if (visible) fn()
+    }, ms),
+  )
+}
+
+function cancelActions(): void {
+  for (const t of actionTimers) window.clearTimeout(t)
+  actionTimers.length = 0
+  acting = false
+  renderer?.clearProps()
+}
+
+/** Drops a treat, the pet eats it, then hearts. Ignored while another session is running. */
+function feedPet(): void {
+  if (!visible || acting) return
+  acting = true
+  machine.touch()
+  renderer.dropTreat(loaded?.config.treat ?? 'bone')
+  later(1150, () => {
     machine.click()
-    audio.play('click')
-    renderer.burstHearts()
-    window.setTimeout(hop, 1100)
+    audio.play('eat')
+  })
+  later(1500, () => renderer.burstHearts())
+  later(2000, () => {
+    acting = false
+  })
+}
+
+/** Every 20-60 minutes, offer feed/play in a notification card. Stops completely when hidden. */
+function scheduleOffer(delayMs?: number): void {
+  window.clearTimeout(offerTimer)
+  if (!visible || !settings.notifications) return
+  const delay = delayMs ?? OFFER_MIN_MS + Math.random() * OFFER_SPREAD_MS
+  offerTimer = window.setTimeout(() => {
+    if (settings.onboarded && !acting && !currentPrompt && !press && !toast.isOpen) {
+      void showOffer()
+      scheduleOffer()
+    } else {
+      scheduleOffer(60_000) // busy: try again in a minute
+    }
+  }, delay)
+}
+
+async function showOffer(): Promise<void> {
+  window.clearTimeout(toastTimer)
+  toastTimer = window.setTimeout(() => void toast.close(), TOAST_TTL_MS)
+  await toast.open(offerPrompt(persona()))
+}
+
+function onToastChoice(action: ToastAction): void {
+  closeToast()
+  if (action === 'feed') feedPet()
+  else if (action === 'play') playPet()
+}
+
+function closeToast(): void {
+  window.clearTimeout(toastTimer)
+  void toast?.close()
+}
+
+/** A bouncing ball while the pet hops and makes its normal click sound. */
+function playPet(): void {
+  if (!visible || acting) return
+  acting = true
+  machine.touch()
+  renderer.bounceBall()
+  for (let i = 0; i < 4; i++) {
+    later(300 + i * 1000, () => {
+      machine.click()
+      audio.play('click')
+      if (i % 2 === 1) renderer.burstHearts()
+    })
   }
-  hop()
+  later(4500, () => {
+    acting = false
+  })
+}
+
+/** Right-click on the pet: ask what to do. */
+async function openMenu(): Promise<void> {
+  if (!visible || acting || press) return
+  if (currentPrompt) await endTalk()
+  machine.touch()
+  void say(menuPrompt(persona()))
 }
 
 /** Occasional sneeze while the pet is awake and calm. Stops completely when hidden. */
@@ -458,10 +562,13 @@ onBeforeUnmount(() => {
   window.clearTimeout(pantTimer)
   window.clearTimeout(pantEndTimer)
   window.clearTimeout(checkInTimer)
+  window.clearTimeout(offerTimer)
+  closeToast()
   window.clearTimeout(bubbleTimer)
   void bubble?.close()
   clickThrough?.stop()
   walker?.stop()
+  cancelActions()
   machine?.pause()
   renderer?.stop()
   for (const fn of unlisten) fn()
@@ -476,7 +583,7 @@ onBeforeUnmount(() => {
     @pointermove="onPointerMove"
     @pointerup="endPress($event, false)"
     @pointercancel="endPress($event, true)"
-    @contextmenu.prevent
+    @contextmenu.prevent="openMenu"
   >
     <canvas ref="spriteEl" />
     <canvas ref="fxEl" />

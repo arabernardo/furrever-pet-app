@@ -270,7 +270,31 @@ const pant: Builder = (ctx, out, pitch) => {
   return [noise, voice]
 }
 
-const BUILDERS: Record<SynthKind, Builder> = { bark, yelp, mew, purr, whine, sneeze, growl, hiss, pant }
+// Four crunchy bursts of band-passed noise
+const munch: Builder = (ctx, out, pitch) => {
+  const t = ctx.currentTime
+  const noise = noiseSource(ctx, 1)
+  const band = ctx.createBiquadFilter()
+  band.type = 'bandpass'
+  band.frequency.value = 1100 * pitch
+  band.Q.value = 0.9
+  const env = ctx.createGain()
+  env.gain.setValueAtTime(0.0001, t)
+  for (let k = 0; k < 4; k++) {
+    const s = t + k * 0.17
+    env.gain.setValueAtTime(0.0001, s)
+    env.gain.exponentialRampToValueAtTime(1.6, s + 0.015)
+    env.gain.exponentialRampToValueAtTime(0.0001, s + 0.1)
+  }
+  noise.connect(band)
+  band.connect(env)
+  env.connect(out)
+  noise.start(t)
+  noise.stop(t + 0.8)
+  return [noise]
+}
+
+const BUILDERS: Record<SynthKind, Builder> = { bark, yelp, mew, purr, whine, sneeze, growl, hiss, pant, munch }
 
 export function buildSynth(kind: SynthKind, ctx: AudioContext, out: AudioNode, pitch: number): AudioScheduledSourceNode[] {
   return BUILDERS[kind](ctx, out, pitch)

@@ -96,6 +96,8 @@ onBeforeUnmount(() => unlisten?.())
     </label>
     <label class="row"><span>Pet checks in on me</span><input v-model="form.checkIns" type="checkbox" /></label>
 
+    <label class="row"><span>Feed/play reminders</span><input v-model="form.notifications" type="checkbox" /></label>
+
     <div class="row">
       <span>Size</span>
       <div class="seg">
