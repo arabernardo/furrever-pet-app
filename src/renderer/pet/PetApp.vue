@@ -28,23 +28,19 @@ const DOUBLE_CLICK_MS = 300
 const DRAG_THRESHOLD = 4
 const POLL_AWAKE_MS = 50
 const POLL_ASLEEP_MS = 250
-// Check-ins: a random delay between 30 and 90 minutes. Lower these while testing.
-const CHECKIN_MIN_MS = 30 * 60_000
-const CHECKIN_SPREAD_MS = 60 * 60_000
-// Feed/play notification: every 20-60 minutes, ignored after 20 s. Lower these while testing.
-const OFFER_MIN_MS = 5 * 60_000
-const OFFER_SPREAD_MS = 10 * 60_000
 const TOAST_TTL_MS = 20_000
 const GREETING_DELAY_MS = 1500
 const BUBBLE_TTL_MS = 15_000
 const GREETING_TTL_MS = 6_000
 const REPLY_TTL_MS = 4_000
-// Panting: starts every 3-6 minutes and lasts 8 seconds. Lower these while testing.
 const PANT_EVERY_MIN_MS = 3 * 60_000
 const PANT_EVERY_SPREAD_MS = 3 * 60_000
 const PANT_DURATION_MS = 8_000
-// Welcome back: only if the PC was locked or asleep at least this long. Lower it while testing.
-const WELCOME_BACK_MIN_AWAY_MS = 2 * 60_000
+const CHECKIN_MIN_MS = 8 * 60_000
+const CHECKIN_SPREAD_MS = 4 * 60_000
+const OFFER_MIN_MS = 5 * 60_000
+const OFFER_SPREAD_MS = 2 * 60_000
+const WELCOME_BACK_MIN_AWAY_MS = 0
 
 interface Press {
   sx: number
@@ -250,10 +246,8 @@ async function quit(): Promise<void> {
 }
 
 // ---------- talking ----------
-
-/** Only talk when the pet is awake, calm, visible and not being touched. */
 function canTalk(): boolean {
-  return visible && !currentPrompt && !press && (machine.state === 'idle' || machine.state === 'sit')
+  return visible && !currentPrompt && !press && !toast?.isOpen && (machine.state === 'idle' || machine.state === 'sit')
 }
 
 function scheduleCheckIn(delayMs?: number): void {
@@ -261,21 +255,21 @@ function scheduleCheckIn(delayMs?: number): void {
   if (!visible || !settings.checkIns) return
   const delay = delayMs ?? CHECKIN_MIN_MS + Math.random() * CHECKIN_SPREAD_MS
   checkInTimer = window.setTimeout(() => {
-    // Asleep in the daytime: wake the pet up so it can ask. At night it stays asleep.
-    if (machine.state === 'sleep' && !press && !currentPrompt && dayPart() !== 'night') {
-      machine.touch()
-      window.setTimeout(() => {
-        if (canTalk()) void say(randomPrompt(persona()))
-      }, 1200)
-      scheduleCheckIn()
+    if (!settings.onboarded || press || currentPrompt || toast.isOpen || acting) {
+      scheduleCheckIn(30_000) // busy: try again soon
       return
     }
-    if (canTalk()) {
-      void say(randomPrompt(persona()))
-      scheduleCheckIn()
+    if (machine.state === 'sleep') {
+      if (dayPart() === 'night') {
+        scheduleCheckIn(60_000) // at night it stays asleep
+        return
+      }
+      machine.touch() // wake the pet so it can ask
+      window.setTimeout(() => sayWhenReady(() => randomPrompt(persona())), 1200)
     } else {
-      scheduleCheckIn(60_000) // busy or asleep at night: try again in a minute
+      sayWhenReady(() => randomPrompt(persona()))
     }
+    scheduleCheckIn()
   }, delay)
 }
 
@@ -287,6 +281,16 @@ async function say(prompt: Prompt): Promise<void> {
   window.clearTimeout(bubbleTimer)
   bubbleTimer = window.setTimeout(() => void endTalk(), prompt.choices.length > 0 ? BUBBLE_TTL_MS : GREETING_TTL_MS)
   await bubble.open({ text: prompt.text, choices: prompt.choices.map(({ label, reply }) => ({ label, reply })) })
+}
+
+/** Speaks as soon as the pet is calm. Waits out short animations, gives up after about 6 s. */
+function sayWhenReady(make: () => Prompt, tries = 12): void {
+  if (!visible) return
+  if (canTalk()) {
+    void say(make())
+    return
+  }
+  if (tries > 0) window.setTimeout(() => sayWhenReady(make, tries - 1), 500)
 }
 
 function scheduleGreeting(): void {
@@ -376,16 +380,12 @@ async function showOffer(): Promise<void> {
   await toast.open(offerPrompt(persona()))
 }
 
-/** The owner is back after a lock or sleep: wake the pet if needed, then welcome them. */
 async function onReturn(awayMs: number): Promise<void> {
   if (!settings.welcomeBack || !settings.onboarded || !visible || acting || press) return
   if (currentPrompt) await endTalk()
   machine.touch() // wakes the pet if it was asleep
   audio.play('click')
-  // Give the wake-up animation a moment before the bubble appears.
-  window.setTimeout(() => {
-    if (canTalk()) void say(welcomeBackPrompt(persona(), awayMs))
-  }, 1200)
+  window.setTimeout(() => sayWhenReady(() => welcomeBackPrompt(persona(), awayMs)), 1200)
 }
 
 function onToastChoice(action: ToastAction): void {
@@ -459,16 +459,23 @@ function startPanting(): void {
   pantEndTimer = window.setTimeout(() => setPanting(false), PANT_DURATION_MS)
 }
 
-/** Every few minutes, if the pet can pant and is awake and calm. Stops completely when hidden. */
-function schedulePant(): void {
+function schedulePant(delayMs?: number): void {
   window.clearTimeout(pantTimer)
   if (!visible) return
+  const delay = delayMs ?? PANT_EVERY_MIN_MS + Math.random() * PANT_EVERY_SPREAD_MS
   pantTimer = window.setTimeout(() => {
+    if (!loaded?.pantAnimations || panting) {
+      schedulePant() // cat, or already panting
+      return
+    }
     const s = machine.state
-    const calm = s === 'idle' || s === 'sit' || s === 'walk-left' || s === 'walk-right'
-    if (calm && loaded?.pantAnimations && !panting) startPanting()
-    schedulePant()
-  }, PANT_EVERY_MIN_MS + Math.random() * PANT_EVERY_SPREAD_MS)
+    if (s === 'idle' || s === 'sit') {
+      startPanting()
+      schedulePant()
+    } else {
+      schedulePant(15_000) // asleep or busy: try again soon
+    }
+  }, delay)
 }
 
 // ---------- state machine hook ----------

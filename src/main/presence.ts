@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 
-const TICK_MS = 3000
+const TICK_MS = 1000
 /** Timers pause during sleep, so a gap this much longer than the tick means the PC slept. */
 const SLEEP_GAP_MS = 20_000
 

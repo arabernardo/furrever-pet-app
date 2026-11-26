@@ -1,5 +1,8 @@
 import type { PetState } from '@/shared/types'
 
+const DEEP_SLEEP_MIN_MS = 3 * 60_000
+const DEEP_SLEEP_MAX_MS = 6 * 60_000
+
 export interface MachineOptions {
   wandering: boolean
   /** Milliseconds without interaction before sleeping. 0 = never sleep. */
@@ -124,7 +127,15 @@ export class PetStateMachine {
         this.after(rand(1500, 3500), () => this.enter('idle'))
         break
       case 'sleep':
-        if (this.napping) this.after(rand(20000, 40000), () => this.enter('idle'))
+        if (this.napping) {
+          this.after(rand(20000, 40000), () => this.enter('idle'))
+        } else {
+          // Idle-timeout sleep ends by itself after a few minutes, then the idle countdown restarts
+          this.after(rand(DEEP_SLEEP_MIN_MS, DEEP_SLEEP_MAX_MS), () => {
+            this.enter('idle')
+            this.armSleepTimer()
+          })
+        }
         break
       case 'blink':
       case 'happy':
