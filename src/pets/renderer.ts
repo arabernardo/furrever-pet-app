@@ -1,3 +1,4 @@
+import type { TreatKind } from '@/shared/types'
 import { HeartEffect } from './effects'
 import type { LoadedAnimation } from './loader'
 
@@ -79,6 +80,20 @@ export class PetRenderer {
   burstHearts(): void {
     this.hearts.burst(this.cssW, this.cssH)
     this.kick()
+  }
+
+  dropTreat(kind: TreatKind): void {
+    this.hearts.drop(kind, this.cssW, this.cssH)
+    this.kick()
+  }
+
+  bounceBall(): void {
+    this.hearts.bounce(this.cssW, this.cssH)
+    this.kick()
+  }
+
+  clearProps(): void {
+    this.hearts.clearProps()
   }
 
   private kick(): void {

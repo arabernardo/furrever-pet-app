@@ -45,6 +45,7 @@ Each sound kind can have several variants. One is picked at random and never the
 | `sneeze` | randomly every ~45–135 s while awake and idle or sitting | `sneeze1.mp3` |
 | `growl` | poked 6 times within ~2.5 s (annoyed) | `growl1.mp3` |
 | `pant` | the dog's "heh, heh, heh", twice during each panting session (every ~3–6 min, lasting ~8 s) | none yet, synth only |
+| `eat` | the pet eats a treat | none yet, synth only |
 
 Behavior
 - Only one sound plays at a time. A new sound stops the previous one.
@@ -106,6 +107,30 @@ Pets with `"tongue": true` in `placeholder` pant for about 8 seconds every 3 to 
 pulsing, and the `pant` sound. The rest of the time the mouth is closed. Timings are constants at the top of
 `PetApp.vue`. With real sprite art, the tongue isn't drawn, so only the sound plays.
 
+## Feed and play (v0.1.2)
+
+- **Right-click the pet** for a bubble with Feed and Play, or use **Feed** and **Play** in the tray menu.
+  The pet also sometimes asks for a treat during a check-in.
+- **Feed:** a treat (`"treat": "bone"` or `"fish"` in `config.json`, default bone) drops in, the pet eats it
+  with the `eat` sound, then hearts appear.
+- **Play:** a ball bounces around the pet for about 4 seconds while it hops and makes its click sound.
+- Only one session runs at a time. Hiding the pet cancels it. The treat and ball are drawn on the effects
+  canvas, so they are never clickable and never count for click-through.
+- **Notification card:** every 20 to 60 minutes a small card appears in the bottom-right corner of the pet's
+  screen asking if you want to feed or play. It closes after 20 s or on "Not now". If the pet is sitting in
+  that corner, the card stacks above it. Turn it off with "Feed/play reminders" in Settings.
+
+## Welcome back (v0.1.3)
+
+When you return after the PC was locked or asleep for at least 2 minutes, Furrever Pet wakes up and says
+"Welcome back". Turn it off with "Welcome back greeting" in Settings.
+
+- **Sleep** is detected by a timer gap, so it works on any system. **Lock** detection uses a small Rust
+  command (`is_session_locked`) and works on Windows only. On macOS only sleep is detected.
+- After sleep the PC often shows the lock screen first, so the greeting waits until you unlock.
+- The check runs every 3 s while the pet is visible and stops completely when it is hidden.
+- Not detected: a screen saver without a lock, or the monitor turning off without sleep.
+
 ## Sleep timer
 
 Settings → "Fall asleep after": 5 minutes (default), 15 minutes, 30 minutes or Never. Idle means no clicks,
@@ -119,10 +144,11 @@ v0.1.0 with sleep turned off migrate to Never. Settings with sleep on use the ne
 | Field | Meaning |
 |---|---|
 | `name` | Label in the tray and settings |
+| `treat` | What the pet is fed: `bone` or `fish` (default `bone`). Optional |
 | `frame.width/height` | Logical px size of one frame at "medium" (default 128×128) |
-| `placeholder` | `style` (`dog`/`cat`/`blob`) + `body`/`accent`/`belly`/`tongue` colors, used when art is missing |
-| `sounds.click` / `doubleClick` / `pickup` / `sneeze` / `growl` / `pant` | File names inside `sounds/`, 2–3 variants recommended for frequent sounds. All optional |
-| `sounds.synth` | Fallback per kind: `bark`, `yelp`, `whine`, `growl`, `sneeze`, `purr`, `mew`, `hiss`, `pant` or `none`. Optional |
+| `placeholder` | `style` (`dog`/`cat`/`blob`) + `body`/`accent`/`belly` colors, plus `tongue` (`true` lets the pet pant), used when art is missing |
+| `sounds.click` / `doubleClick` / `pickup` / `sneeze` / `growl` / `pant` / `eat` | File names inside `sounds/`, 2–3 variants recommended for frequent sounds. All optional |
+| `sounds.synth` | Fallback per kind: `bark`, `yelp`, `whine`, `growl`, `sneeze`, `pant`, `purr`, `mew`, `hiss`, `munch` or `none`. Optional |
 | `animations.<state>` | `sheet`, `frames`, `fps`, `loop`; or `mirrorOf` to flip another animation |
 
 States: `idle, blink, walk-left, walk-right, sit, sleep, happy, surprised, dangle`.

@@ -1,4 +1,4 @@
-export type Reaction = 'happy' | 'hearts' | 'play' | 'none'
+export type Reaction = 'happy' | 'hearts' | 'play' | 'feed' | 'none'
 export type DayPart = 'morning' | 'afternoon' | 'evening' | 'night'
 
 export interface Choice {
@@ -8,7 +8,7 @@ export interface Choice {
 }
 
 export interface Prompt {
-  kind: 'greeting' | 'checkIn' | 'play'
+  kind: 'greeting' | 'checkIn' | 'play' | 'menu'
   text: string
   choices: Choice[]
 }
@@ -51,6 +51,13 @@ const CHECK_INS: Template[] = [
     choices: [
       { label: 'Yes!', reply: 'Good job!', react: 'happy' },
       { label: 'Not yet', reply: 'Go get some! {pet} will wait.', react: 'none' },
+    ],
+  },
+  {
+    text: '{pet} is a little hungry{,owner}. Got a treat?',
+    choices: [
+      { label: 'Feed', reply: 'Treat time!', react: 'feed' },
+      { label: 'Later', reply: 'Okay, {pet} will wait.', react: 'none' },
     ],
   },
 ]
@@ -118,4 +125,51 @@ export function randomPrompt(p: Persona, now = new Date()): Prompt {
   if (dayPart(now) === 'night') return build('checkIn', pickFresh(NIGHT), p)
   if (Math.random() < 0.6) return build('checkIn', pickFresh(CHECK_INS), p)
   return build('play', pickFresh(PLAY), p)
+}
+
+/** Shown when the pet is right-clicked. */
+export function menuPrompt(p: Persona): Prompt {
+  return {
+    kind: 'menu',
+    text: fill('What shall we do{,owner}?', p),
+    choices: [
+      { label: 'Feed', reply: 'Treat time!', react: 'feed' },
+      { label: 'Play', reply: 'Yay! Ball time!', react: 'play' },
+    ],
+  }
+}
+
+export interface Offer {
+  title: string
+  text: string
+}
+
+const OFFERS: Offer[] = [
+  { title: '{pet} wants to play!', text: 'Got a minute{,owner}? Feed or play with {pet}.' },
+  { title: '{pet} is hungry', text: 'How about a treat{,owner}?' },
+  { title: 'Break time?', text: '{pet} thinks you deserve a little break{,owner}. Play together?' },
+]
+
+/** Text for the notification toast. */
+export function offerPrompt(p: Persona): Offer {
+  const o = OFFERS[Math.floor(Math.random() * OFFERS.length)]
+  return { title: fill(o.title, p), text: fill(o.text, p) }
+}
+
+/** Greeting when the owner comes back after the PC was locked or asleep. */
+export function welcomeBackPrompt(p: Persona, awayMs: number, now = new Date()): Prompt {
+  const mins = awayMs / 60_000
+  let text = 'Welcome back{,owner}! {pet} missed you!'
+  if (mins < 10) {
+    text = 'Welcome back{,owner}! {pet} was waiting for you!'
+  } else if (mins >= 180) {
+    const long: Record<DayPart, string> = {
+      morning: 'Good morning{,owner}! Welcome back, {pet} missed you!',
+      afternoon: 'Welcome back{,owner}! It has been a while. {pet} missed you!',
+      evening: 'Welcome back{,owner}! {pet} has been waiting all day!',
+      night: 'Welcome back{,owner}! {pet} stayed up for you.',
+    }
+    text = long[dayPart(now)]
+  }
+  return { kind: 'greeting', text: fill(text, p), choices: [] }
 }

@@ -8,6 +8,8 @@ export interface TrayActions {
   toggleMute: () => void
   openSettings: () => void
   quit: () => void
+  feed: () => void
+  play: () => void
 }
 
 export interface TrayState {
@@ -52,6 +54,8 @@ export class PetTray {
     return Menu.new({
       items: [
         await MenuItem.new({ id: 'toggle', text: s.visible ? 'Hide pet' : 'Show pet', action: () => this.actions.toggleVisible() }),
+        await MenuItem.new({ id: 'feed', text: 'Feed', action: () => this.actions.feed() }),
+        await MenuItem.new({ id: 'play', text: 'Play', action: () => this.actions.play() }),
         await Submenu.new({ text: 'Choose pet', items: petItems }),
         await CheckMenuItem.new({ id: 'mute', text: 'Mute sounds', checked: s.muted, action: () => this.actions.toggleMute() }),
         await PredefinedMenuItem.new({ item: 'Separator' }),

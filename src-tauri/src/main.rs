@@ -36,6 +36,37 @@ fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+/// Returns true while the Windows session is locked (Win+L, lock screen, fast user switching).
+///
+/// Why Rust: when the PC is locked, Windows moves input to a separate secure desktop that
+/// JavaScript cannot see. Asking for the current input desktop fails while locked, and that
+/// failure is the signal. On other systems this always returns false.
+#[tauri::command]
+fn is_session_locked() -> bool {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::StationsAndDesktops::{
+            CloseDesktop, OpenInputDesktop, SwitchDesktop, DESKTOP_SWITCHDESKTOP,
+        };
+        // SAFETY: plain Win32 calls. The handle is closed before returning.
+        unsafe {
+            // Cannot open the input desktop: the secure (lock screen) desktop is active.
+            let desk = OpenInputDesktop(0, 0, DESKTOP_SWITCHDESKTOP);
+            if desk as usize == 0 {
+                return true;
+            }
+            // Switching to the desktop that is already active succeeds when unlocked.
+            let switched = SwitchDesktop(desk);
+            CloseDesktop(desk);
+            switched == 0
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         // Single instance. Must be the FIRST plugin. When a second copy is launched, this callback
@@ -48,7 +79,7 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::new().build())
         // "Launch at startup": registry Run key on Windows, LaunchAgent on macOS.
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
-        .invoke_handler(tauri::generate_handler![cursor_in_window, quit_app])
+        .invoke_handler(tauri::generate_handler![cursor_in_window, quit_app, is_session_locked])
         // Dev only: opens devtools for the pet window so console errors are visible.
         // `#[cfg(debug_assertions)]` removes the code entirely from release builds, so the
         // installer doesn't need the `devtools` feature and ships without devtools.
