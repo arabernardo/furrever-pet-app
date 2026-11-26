@@ -1,7 +1,8 @@
 {
   "name": "furrever-pet",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.4",
+  "author": "Arianna Bernardo (ariannamaounab@gmail.com)",
   "type": "module",
   "scripts": {
     "dev": "vite",

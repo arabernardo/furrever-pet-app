@@ -17,6 +17,7 @@ interface Pose {
   extra?: 'zzz' | 'bang'
   /** Frame parity (0 or 1). Drives the tongue in and out. */
   beat: number
+  lick?: boolean
 }
 
 const INK = '#2b2118'
@@ -45,6 +46,8 @@ function poseFor(anim: PetState, i: number, n: number): Pose {
       return { ...base, eyes: 'wide', mouth: 'o', stretch: 1.06, bob: i === 0 ? -6 : -2, tail: 0, extra: 'bang' }
     case 'dangle':
       return { ...base, legs: 'dangle', eyes: 'wide', mouth: 'o', tilt: wave * 0.08, phase: t * Math.PI * 2, tail: 0 }
+    case 'lick':
+      return { ...base, legs: 'sit', eyes: 'closed', mouth: 'flat', tail: wave * 0.2, stretch: 1 + wave * 0.015, lick: true }
   }
 }
 
@@ -292,6 +295,30 @@ function drawCollar(ctx: CanvasRenderingContext2D, color: string, cx: number, hy
   ellipse(ctx, cx, hy + 34, 4.5, 4.5, '#ffd24a')
 }
 
+/** Small tongue flick at the mouth. Shown on alternate frames. Drawn in head space, so it follows the head. */
+function drawLickTongue(ctx: CanvasRenderingContext2D, cx: number, hy: number): void {
+  ellipse(ctx, cx, hy + 19, 4, 5.5, '#f06a7e')
+  ctx.strokeStyle = '#d9485f'
+  ctx.lineWidth = 1.1
+  ctx.lineCap = 'round'
+  line(ctx, cx, hy + 16, cx, hy + 22)
+}
+
+/** Dog: the front paw lifted to the mouth. It bobs a little on alternate frames. */
+function drawRaisedPaw(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, cx: number, headY: number, beat: number): void {
+  const px = cx + 10
+  const py = headY + 24 - beat * 2
+  ctx.strokeStyle = p.body
+  ctx.lineWidth = 11
+  ctx.lineCap = 'round'
+  line(ctx, cx + 20, 108, px, py) // the leg
+  ellipse(ctx, px, py, 8, 6.5, p.body)
+  ctx.strokeStyle = p.accent
+  ctx.lineWidth = 1.5
+  line(ctx, px - 2.5, py - 1, px - 2.5, py + 3) // toes
+  line(ctx, px + 2.5, py - 1, px + 2.5, py + 3)
+}
+
 function drawPet(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, pose: Pose, collar?: string, lashes = false): void {
   const lie = pose.legs === 'lie'
   const sit = pose.legs === 'sit'
@@ -314,10 +341,34 @@ function drawPet(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, pose: Pose
   ellipse(ctx, cx, bodyY, bodyRx, bodyRy, p.body)
   if (!lie) ellipse(ctx, cx, bodyY + 4, bodyRx * 0.6, bodyRy * 0.72, p.belly)
   drawFeet(ctx, pose.legs, pose.phase, p.belly)
+
+  // Licking moves and tilts the head. 'paws': head dips toward a raised paw.
+  // 'body': head sweeps back and forth along the flank.
+  const lick = pose.lick ? (p.lick ?? 'paws') : null
+  let hx = 0
+  let hdy = 0
+  let tilt = 0
+  if (lick === 'paws') {
+    hdy = 8
+    tilt = -0.3
+  } else if (lick === 'body') {
+    const sweep = 0.5 - 0.5 * Math.cos(pose.t * Math.PI * 2)
+    hx = 6 + sweep * 18
+    hdy = 22 + sweep * 8
+    tilt = -0.9 + sweep * 0.2
+  }
+  ctx.save()
+  ctx.translate(cx + hx, headY + hdy)
+  ctx.rotate(tilt)
+  ctx.translate(-cx, -headY)
   drawEars(ctx, p.style, cx, headY, p.body, p.accent, pose.eyes === 'wide' ? 0.2 : 0.5)
   ellipse(ctx, cx, headY, 32, 29, p.body)
-    drawFace(ctx, p, cx, headY, pose, lashes)
-  if (collar) drawCollar(ctx, collar, cx, headY)
+  drawFace(ctx, p, cx, headY, pose, lashes)
+  if (lick && pose.beat) drawLickTongue(ctx, cx, headY)
+  ctx.restore()
+
+  if (collar) drawCollar(ctx, collar, cx, headY) // stays at the neck while the head moves
+  if (lick === 'paws') drawRaisedPaw(ctx, p, cx, headY + hdy, pose.beat)
   if (isPanting(p, pose)) drawTongue(ctx, cx, headY + 14, pose.beat)
   ctx.restore()
 

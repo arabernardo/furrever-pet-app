@@ -1,9 +1,9 @@
-export const PET_STATES = ['idle', 'blink', 'walk-left', 'walk-right', 'sit', 'sleep', 'happy', 'surprised', 'dangle'] as const
+export const PET_STATES = ['idle', 'blink', 'walk-left', 'walk-right', 'sit', 'sleep', 'happy', 'surprised', 'dangle', 'lick'] as const
 export type PetState = (typeof PET_STATES)[number]
 export type PetSize = 'small' | 'medium' | 'large'
-export const SOUND_KINDS = ['click', 'doubleClick', 'pickup', 'sneeze', 'growl', 'pant', 'eat'] as const
+export const SOUND_KINDS = ['click', 'doubleClick', 'pickup', 'sneeze', 'growl', 'pant', 'eat', 'lick'] as const
 export type PetSoundKind = (typeof SOUND_KINDS)[number]
-export type SynthKind = 'bark' | 'yelp' | 'purr' | 'mew' | 'whine' | 'sneeze' | 'growl' | 'hiss' | 'pant' | 'munch'
+export type SynthKind = 'bark' | 'yelp' | 'purr' | 'mew' | 'whine' | 'sneeze' | 'growl' | 'hiss' | 'pant' | 'munch' | 'lick'
 export type Gender = 'boy' | 'girl'
 export type TreatKind = 'bone' | 'fish'
 
@@ -29,6 +29,8 @@ export interface PlaceholderConfig {
   belly: string
   /** Draw an open mouth with a panting tongue (dogs). */
   tongue?: boolean
+  /** How the pet licks itself: 'paws' (one front paw) or 'body' (whole-body bathing). Defaults to 'paws'. */
+  lick?: 'paws' | 'body'
 }
 
 export interface PetConfig {

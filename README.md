@@ -46,6 +46,7 @@ Each sound kind can have several variants. One is picked at random and never the
 | `growl` | poked 6 times within ~2.5 s (annoyed) | `growl1.mp3` |
 | `pant` | the dog's "heh, heh, heh", twice during each panting session (every ~3–6 min, lasting ~8 s) | none yet, synth only |
 | `eat` | the pet eats a treat | none yet, synth only |
+| `lick` | repeating while the pet licks itself | none yet, synth only |
 
 Behavior
 - Only one sound plays at a time. A new sound stops the previous one.
@@ -57,7 +58,7 @@ Fallbacks
 - Missing files are skipped with a console warning. The app never fails because of a missing sound.
 - If a kind has no files, the app uses the Web Audio synth named in `sounds.synth` for that kind
   (`bark`, `yelp`, `purr`, `mew`). **The synth is a placeholder, not meant to ship.**
-- Built-in synth sounds: `bark`, `yelp`, `whine`, `growl`, `sneeze`, `purr`, `mew`, `hiss`.
+- Built-in synth sounds: `bark`, `yelp`, `whine`, `growl`, `sneeze`, `purr`, `mew`, `hiss`, `pant`, `munch`, `lick`.
 - Kinds with no files and no synth entry stay silent.
 - Both default pets have a synth for every kind, so the app is never silent. Real files always take priority.
 - The cat has no `pickup`, `sneeze` or `growl` entries, so those are silent for the cat until you add them
@@ -107,6 +108,12 @@ Pets with `"tongue": true` in `placeholder` pant for about 8 seconds every 3 to 
 pulsing, and the `pant` sound. The rest of the time the mouth is closed. Timings are constants at the top of
 `PetApp.vue`. With real sprite art, the tongue isn't drawn, so only the sound plays.
 
+## Self-licking (v0.1.4)
+
+While idle, the pet sometimes licks itself for 3.5 to 6 seconds. `"lick": "paws"` in `placeholder` (the dog)
+licks a raised front paw. `"lick": "body"` (the cat) sweeps its head along its body like it is bathing.
+It plays the `lick` sound about once a second. A click, drag, or check-in interrupts it.
+
 ## Feed and play (v0.1.2)
 
 - **Right-click the pet** for a bubble with Feed and Play, or use **Feed** and **Play** in the tray menu.
@@ -146,12 +153,12 @@ v0.1.0 with sleep turned off migrate to Never. Settings with sleep on use the ne
 | `name` | Label in the tray and settings |
 | `treat` | What the pet is fed: `bone` or `fish` (default `bone`). Optional |
 | `frame.width/height` | Logical px size of one frame at "medium" (default 128×128) |
-| `placeholder` | `style` (`dog`/`cat`/`blob`) + `body`/`accent`/`belly` colors, plus `tongue` (`true` lets the pet pant), used when art is missing |
-| `sounds.click` / `doubleClick` / `pickup` / `sneeze` / `growl` / `pant` / `eat` | File names inside `sounds/`, 2–3 variants recommended for frequent sounds. All optional |
-| `sounds.synth` | Fallback per kind: `bark`, `yelp`, `whine`, `growl`, `sneeze`, `pant`, `purr`, `mew`, `hiss`, `munch` or `none`. Optional |
-| `animations.<state>` | `sheet`, `frames`, `fps`, `loop`; or `mirrorOf` to flip another animation |
+| `placeholder` | `style` (`dog`/`cat`/`blob`) + `body`/`accent`/`belly` colors, `tongue` (`true` lets the pet pant), `lick` (`paws` or `body`), used when art is missing |
+| `sounds.click` / `doubleClick` / `pickup` / `sneeze` / `growl` / `pant` / `eat` / `lick` | File names inside `sounds/`, 2–3 variants recommended for frequent sounds. All optional |
+| `sounds.synth` | Fallback per kind: `bark`, `yelp`, `whine`, `growl`, `sneeze`, `pant`, `purr`, `mew`, `hiss`, `munch`, `lick` or `none`. Optional |
+| `animations.<state>` | `sheet`, `frames`, `fps`, `loop`; or `mirrorOf` to flip another animation. For `lick`, 6 frames at 6 fps is a good start. A pet with no `lick` animation reuses idle with a console warning |
 
-States: `idle, blink, walk-left, walk-right, sit, sleep, happy, surprised, dangle`.
+States: `idle, blink, walk-left, walk-right, sit, sleep, happy, surprised, dangle, lick`.
 Only `idle` is required; missing states reuse `idle` with a console warning.
 
 3. Sprite sheets: a single horizontal strip of equal frames, transparent PNG/WebP.

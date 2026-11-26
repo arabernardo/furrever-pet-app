@@ -1,6 +1,7 @@
 [package]
 name = "furrever-pet"
-version = "0.1.3"
+version = "0.1.4"
+authors = ["Arianna Bernardo"]
 edition = "2021"
 rust-version = "1.77"
 

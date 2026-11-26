@@ -122,6 +122,9 @@ export class PetStateMachine {
       case 'sit':
         this.after(rand(6000, 12000), () => this.leaveSit())
         break
+      case 'lick':
+        this.after(rand(3500, 6000), () => this.enter('idle'))
+        break
       case 'walk-left':
       case 'walk-right':
         this.after(rand(1500, 3500), () => this.enter('idle'))
@@ -149,8 +152,9 @@ export class PetStateMachine {
 
   private pickIdleAction(): void {
     const r = Math.random()
-    if (r < 0.45) return this.enter('blink')
-    if (r < 0.7) return this.enter('sit')
+    if (r < 0.4) return this.enter('blink')
+    if (r < 0.65) return this.enter('sit')
+    if (r < 0.77) return this.enter('lick')
     if (this.opts.wandering) return this.enter(Math.random() < 0.5 ? 'walk-left' : 'walk-right')
     return this.enter('blink')
   }

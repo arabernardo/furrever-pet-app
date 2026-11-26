@@ -85,6 +85,8 @@ let toast: ToastWindow
 let offerTimer: number | undefined
 let toastTimer: number | undefined
 
+let lickSoundTimer: number | undefined
+
 let presence: Presence
 
 let acting = false // a feed or play session is running
@@ -227,6 +229,7 @@ async function setVisible(next: boolean): Promise<void> {
     closeToast()
     await endTalk()
     walker.stop()
+    window.clearInterval(lickSoundTimer)
     cancelActions()
     machine.pause()
     renderer.stop()
@@ -245,9 +248,9 @@ async function quit(): Promise<void> {
   await invoke('quit_app')
 }
 
-// ---------- talking ----------
 function canTalk(): boolean {
-  return visible && !currentPrompt && !press && !toast?.isOpen && (machine.state === 'idle' || machine.state === 'sit')
+  const s = machine.state
+  return visible && !currentPrompt && !press && !toast?.isOpen && (s === 'idle' || s === 'sit' || s === 'lick')
 }
 
 function scheduleCheckIn(delayMs?: number): void {
@@ -483,6 +486,13 @@ function schedulePant(delayMs?: number): void {
 function handleEnter(state: PetState): void {
   if (!loaded) return
   renderer.play(animFor(state))
+  // Wet lick sound about once a second while licking, nothing otherwise
+  window.clearInterval(lickSoundTimer)
+  lickSoundTimer = undefined
+  if (state === 'lick') {
+    audio.play('lick')
+    lickSoundTimer = window.setInterval(() => audio.play('lick'), 900)
+  }
   if (state === 'walk-left' || state === 'walk-right') {
     const dpr = window.devicePixelRatio || 1
     void walker.start(state === 'walk-left' ? -1 : 1, WALK_SPEED * dpr, () => machine.blocked())
@@ -596,6 +606,7 @@ onBeforeUnmount(() => {
   void bubble?.close()
   clickThrough?.stop()
   walker?.stop()
+  window.clearInterval(lickSoundTimer)
   cancelActions()
   machine?.pause()
   renderer?.stop()
