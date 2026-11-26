@@ -9,7 +9,9 @@
     "pickup": ["whine1.mp3", "whine2.mp3"],
     "sneeze": ["sneeze1.mp3"],
     "growl": ["growl1.mp3"],
-    "synth": { "click": "bark", "doubleClick": "yelp", "pickup": "whine", "sneeze": "sneeze", "growl": "growl", "pant": "pant", "eat": "munch", "lick": "lick" }
+    "attention": ["bark1.mp3", "bark2.mp3", "bark3.mp3"],
+    "whine": ["whine1.mp3"],
+    "synth": { "click": "bark", "doubleClick": "yelp", "pickup": "whine", "sneeze": "sneeze", "growl": "growl", "pant": "pant", "eat": "munch", "lick": "lick",  "attention": "bark", "whine": "whine", "cry": "cry" }
   },
   "animations": {
     "idle": { "sheet": "sprites/idle.png", "frames": 4, "fps": 3, "loop": true },

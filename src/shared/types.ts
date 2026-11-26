@@ -1,9 +1,9 @@
 export const PET_STATES = ['idle', 'blink', 'walk-left', 'walk-right', 'sit', 'sleep', 'happy', 'surprised', 'dangle', 'lick'] as const
 export type PetState = (typeof PET_STATES)[number]
 export type PetSize = 'small' | 'medium' | 'large'
-export const SOUND_KINDS = ['click', 'doubleClick', 'pickup', 'sneeze', 'growl', 'pant', 'eat', 'lick'] as const
+export const SOUND_KINDS = ['click', 'doubleClick', 'pickup', 'sneeze', 'growl', 'pant', 'eat', 'lick', 'attention', 'whine', 'cry'] as const
 export type PetSoundKind = (typeof SOUND_KINDS)[number]
-export type SynthKind = 'bark' | 'yelp' | 'purr' | 'mew' | 'whine' | 'sneeze' | 'growl' | 'hiss' | 'pant' | 'munch' | 'lick'
+export type SynthKind = 'bark' | 'yelp' | 'purr' | 'mew' | 'whine' | 'sneeze' | 'growl' | 'hiss' | 'pant' | 'munch' | 'lick' | 'cry'
 export type Gender = 'boy' | 'girl'
 export type TreatKind = 'bone' | 'fish'
 
@@ -63,6 +63,7 @@ export interface AppSettings {
   onboarded: boolean
   notifications: boolean
   welcomeBack: boolean
+  attentionCalls: boolean
 }
 
 export interface SavedPosition {

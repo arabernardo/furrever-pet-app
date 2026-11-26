@@ -21,6 +21,8 @@ export interface LoadedPet {
   /** Same animations with the panting tongue drawn in. Null for pets that can't pant. */
   pantAnimations: Record<PetState, LoadedAnimation> | null
   sounds: Record<PetSoundKind, string[]>
+  /** Idle and sit sheets with the eyes turned, keyed like 'idle:-1,0'. Empty with real art. */
+  gaze: Record<string, LoadedAnimation>
 }
 
 function loadImage(url: string): Promise<HTMLImageElement> {
@@ -84,10 +86,36 @@ async function buildAnimations(config: PetConfig, gender: Gender, tongue: boolea
   return animations
 }
 
+const GAZE_DIRS: [number, number][] = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]
+
+/** Placeholder-art variants with the eyes turned in each direction, for the two calm states. */
+function buildGaze(config: PetConfig, gender: Gender): Record<string, LoadedAnimation> {
+  const out: Record<string, LoadedAnimation> = {}
+  for (const state of ['idle', 'sit'] as const) {
+    const def = config.animations[state]
+    if (!def) continue
+    if (def.sheet && resolveAssetUrl(config.id, def.sheet)) continue // real art: no eye variants
+    for (const dir of GAZE_DIRS) {
+      const sheet = createPlaceholderSheet(config, state, def.frames, COLLAR_COLORS[gender], gender === 'girl', false, dir)
+      out[`${state}:${dir[0]},${dir[1]}`] = {
+        sheet,
+        frameW: sheet.width / def.frames,
+        frameH: sheet.height,
+        frames: def.frames,
+        fps: def.fps,
+        loop: def.loop,
+        flip: false,
+      }
+    }
+  }
+  return out
+}
+
 export async function loadPet(config: PetConfig, gender: Gender): Promise<LoadedPet> {
   const tag = `[pet:${config.id}]`
   const animations = await buildAnimations(config, gender, false)
   const pantAnimations = config.placeholder.tongue ? await buildAnimations(config, gender, true) : null
+  const gaze = buildGaze(config, gender)
 
   const sounds = Object.fromEntries(SOUND_KINDS.map((k) => [k, [] as string[]])) as Record<PetSoundKind, string[]>
   for (const kind of SOUND_KINDS) {
@@ -97,5 +125,5 @@ export async function loadPet(config: PetConfig, gender: Gender): Promise<Loaded
       else console.warn(`${tag} missing sound sounds/${file}, skipping`)
     }
   }
-  return { config, animations, pantAnimations, sounds }
+  return { config, animations, pantAnimations, gaze, sounds }
 }

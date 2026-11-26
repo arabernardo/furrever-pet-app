@@ -100,6 +100,8 @@ onBeforeUnmount(() => unlisten?.())
 
     <label class="row"><span>Welcome back greeting</span><input v-model="form.welcomeBack" type="checkbox" /></label>
 
+    <label class="row"><span>Calls for attention when lonely</span><input v-model="form.attentionCalls" type="checkbox" /></label>
+
     <div class="row">
       <span>Size</span>
       <div class="seg">

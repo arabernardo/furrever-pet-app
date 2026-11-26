@@ -6,7 +6,7 @@
   "sounds": {
     "click": ["purr1.mp3", "purr2.mp3", "purr3.mp3"],
     "doubleClick": ["mew1.mp3"],
-    "synth": { "click": "purr", "doubleClick": "mew", "pickup": "mew", "sneeze": "sneeze", "growl": "hiss", "eat": "munch", "lick": "lick" }
+    "synth": { "click": "purr", "doubleClick": "mew", "pickup": "mew", "sneeze": "sneeze", "growl": "hiss", "eat": "munch", "lick": "lick", "attention": "mew", "whine": "mew", "cry": "cry" }
   },
   "animations": {
     "idle": { "sheet": "sprites/idle.png", "frames": 4, "fps": 3, "loop": true },

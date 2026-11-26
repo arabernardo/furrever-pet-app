@@ -2,7 +2,7 @@ import type { LoadedPet } from '@/pets/loader'
 import type { PetSoundKind } from '@/shared/types'
 import { buildSynth } from './synth'
 
-const COOLDOWN_MS: Record<PetSoundKind, number> = { click: 350, doubleClick: 600, pickup: 1500, sneeze: 0, growl: 1500, pant: 2000, eat: 800, lick: 300 }
+const COOLDOWN_MS: Record<PetSoundKind, number> = { click: 350, doubleClick: 600, pickup: 1500, sneeze: 0, growl: 1500, pant: 2000, eat: 800, lick: 300, attention: 0, whine: 0, cry: 0 }
 
 /** Plays sound files via HTMLAudioElement; falls back to Web Audio synth when none exist. */
 export class PetAudio {
@@ -11,8 +11,8 @@ export class PetAudio {
   private pet: LoadedPet | null = null
   private ctx: AudioContext | null = null
   private stopCurrent: (() => void) | null = null
-  private lastAt: Record<PetSoundKind, number> = { click: 0, doubleClick: 0, pickup: 0, sneeze: 0, growl: 0, pant: 0, eat: 0, lick: 0 }
-  private lastVariant: Record<PetSoundKind, number> = { click: -1, doubleClick: -1, pickup: -1, sneeze: -1, growl: -1, pant: -1, eat: -1, lick: -1 }
+  private lastAt: Record<PetSoundKind, number> = { click: 0, doubleClick: 0, pickup: 0, sneeze: 0, growl: 0, pant: 0, eat: 0, lick: 0, attention: 0, whine: 0, cry: 0 }
+  private lastVariant: Record<PetSoundKind, number> = { click: -1, doubleClick: -1, pickup: -1, sneeze: -1, growl: -1, pant: -1, eat: -1, lick: -1, attention: -1, whine: -1, cry: -1 }
 
   setPet(pet: LoadedPet): void {
     this.pet = pet

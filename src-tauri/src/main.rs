@@ -67,6 +67,21 @@ fn is_session_locked() -> bool {
     }
 }
 
+/// Returns the global mouse cursor position in PHYSICAL pixels, relative to the CENTRE of the
+/// calling window, even when the cursor is far outside it (unlike `cursor_in_window`).
+///
+/// Why Rust: the pet window is click-through, so JavaScript never receives mouse events and
+/// cannot know where the cursor is. The frontend polls this to turn the pet's eyes toward it.
+#[tauri::command]
+fn cursor_offset(window: WebviewWindow) -> Option<(f64, f64)> {
+    let cursor = window.cursor_position().ok()?;
+    let origin = window.inner_position().ok()?;
+    let size = window.inner_size().ok()?;
+    let cx = f64::from(origin.x) + f64::from(size.width) / 2.0;
+    let cy = f64::from(origin.y) + f64::from(size.height) / 2.0;
+    Some((cursor.x - cx, cursor.y - cy))
+}
+
 fn main() {
     tauri::Builder::default()
         // Single instance. Must be the FIRST plugin. When a second copy is launched, this callback
@@ -79,7 +94,7 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::new().build())
         // "Launch at startup": registry Run key on Windows, LaunchAgent on macOS.
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
-        .invoke_handler(tauri::generate_handler![cursor_in_window, quit_app, is_session_locked])
+        .invoke_handler(tauri::generate_handler![cursor_in_window, quit_app, is_session_locked, cursor_offset])
         // Dev only: opens devtools for the pet window so console errors are visible.
         // `#[cfg(debug_assertions)]` removes the code entirely from release builds, so the
         // installer doesn't need the `devtools` feature and ships without devtools.

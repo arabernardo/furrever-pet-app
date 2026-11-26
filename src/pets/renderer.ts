@@ -55,6 +55,13 @@ export class PetRenderer {
     this.kick()
   }
 
+  /** Swaps the sheet but keeps the current frame, for same-length variants (eye direction). */
+  swap(anim: LoadedAnimation): void {
+    if (!this.anim || this.anim.frames !== anim.frames) return this.play(anim)
+    this.anim = anim
+    this.kick()
+  }
+
   start(): void {
     this.running = true
     this.lastFrameAt = performance.now()

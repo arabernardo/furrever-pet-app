@@ -18,6 +18,8 @@ interface Pose {
   /** Frame parity (0 or 1). Drives the tongue in and out. */
   beat: number
   lick?: boolean
+  /** Eye direction for open eyes. Defaults to straight ahead. */
+  gaze?: [number, number]
 }
 
 const INK = '#2b2118'
@@ -142,14 +144,16 @@ function drawEars(ctx: CanvasRenderingContext2D, style: string, cx: number, hy: 
   }
 }
 
-function drawEye(ctx: CanvasRenderingContext2D, x: number, y: number, kind: Eyes): void {
+function drawEye(ctx: CanvasRenderingContext2D, x: number, y: number, kind: Eyes, gaze: [number, number] = [0, 0]): void {
   ctx.strokeStyle = INK
   ctx.lineWidth = 2.5
   ctx.lineCap = 'round'
   switch (kind) {
     case 'open':
-      ellipse(ctx, x, y, 4.6, 5.4, INK)
-      ellipse(ctx, x + 1.6, y - 1.8, 1.6, 1.6, '#fff')
+      const gx = x + gaze[0] * 2.4
+      const gy = y + gaze[1] * 2.2
+      ellipse(ctx, gx, gy, 4.6, 5.4, INK)
+      ellipse(ctx, gx + 1.6, gy - 1.8, 1.6, 1.6, '#fff')
       break
     case 'wide':
       ctx.beginPath()
@@ -218,8 +222,8 @@ function drawFace(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, cx: numbe
     ctx.lineCap = 'round'
     for (const dx of [-9, 0, 9]) line(ctx, cx + dx, hy - 29, cx + dx * 0.8, hy - 20)
   }
-  drawEye(ctx, cx - 14, hy + 2, pose.eyes)
-  drawEye(ctx, cx + 14, hy + 2, pose.eyes)
+  drawEye(ctx, cx - 14, hy + 2, pose.eyes, pose.gaze)
+  drawEye(ctx, cx + 14, hy + 2, pose.eyes, pose.gaze)
   if (lashes) {
     drawLashes(ctx, cx - 14, hy + 2, pose.eyes, -1)
     drawLashes(ctx, cx + 14, hy + 2, pose.eyes, 1)
@@ -376,7 +380,7 @@ function drawPet(ctx: CanvasRenderingContext2D, p: PlaceholderConfig, pose: Pose
 }
 
 /** Builds a horizontal sprite strip (frames × frame size, rendered at 2× for sharpness). */
-export function createPlaceholderSheet(cfg: PetConfig, anim: PetState, frames: number, collar?: string, lashes = false, tongue = false): HTMLCanvasElement {
+export function createPlaceholderSheet(cfg: PetConfig, anim: PetState, frames: number, collar?: string, lashes = false, tongue = false, gaze: [number, number] = [0, 0]): HTMLCanvasElement {
   const k = 2
   const { width: w, height: h } = cfg.frame
   const canvas = document.createElement('canvas')
@@ -390,7 +394,7 @@ export function createPlaceholderSheet(cfg: PetConfig, anim: PetState, frames: n
     ctx.save()
     ctx.translate(i * w * k + (w * k - 128 * unit) / 2, (h * k - 128 * unit) / 2)
     ctx.scale(unit, unit)
-    drawPet(ctx, ph, poseFor(anim, i, frames), collar, lashes)
+    drawPet(ctx, ph, { ...poseFor(anim, i, frames), gaze }, collar, lashes)
     ctx.restore()
   }
   return canvas

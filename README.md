@@ -47,6 +47,9 @@ Each sound kind can have several variants. One is picked at random and never the
 | `pant` | the dog's "heh, heh, heh", twice during each panting session (every ~3–6 min, lasting ~8 s) | none yet, synth only |
 | `eat` | the pet eats a treat | none yet, synth only |
 | `lick` | repeating while the pet licks itself | none yet, synth only |
+| `attention` | stage 1 of the lonely escalation: 3 barks (the cat mews) after ~3 min without attention | `bark1.mp3`, `bark2.mp3`, `bark3.mp3` |
+| `whine` | stage 2: two whines after ~6 min | `whine1.mp3` |
+| `cry` | stage 3: a long cry after ~9 min, repeated every ~4 min | none yet, synth only |
 
 Behavior
 - Only one sound plays at a time. A new sound stops the previous one.
@@ -114,6 +117,16 @@ While idle, the pet sometimes licks itself for 3.5 to 6 seconds. `"lick": "paws"
 licks a raised front paw. `"lick": "body"` (the cat) sweeps its head along its body like it is bathing.
 It plays the `lick` sound about once a second. A click, drag, or check-in interrupts it.
 
+## Eyes and loneliness (v0.1.5)
+
+- **Eyes follow the cursor** in 8 directions while the pet is idle or sitting. This uses the Rust command
+  `cursor_offset` (polled every 150 ms, only in those states). It works with the placeholder art only. Real
+  sprites need their own eye art.
+- **Lonely escalation:** after 3 min of awake time without attention the pet barks (the cat mews) three times,
+  after 6 min it whines twice, after 9 min it cries, then cries again every 4 min. Any click, hover, drag, feed,
+  play, bubble answer or PC unlock resets it. Sleeping time doesn't count. Turn it off with "Calls for attention
+  when lonely" in Settings. Timings are constants at the top of `PetApp.vue`.
+
 ## Feed and play (v0.1.2)
 
 - **Right-click the pet** for a bubble with Feed and Play, or use **Feed** and **Play** in the tray menu.
@@ -154,8 +167,8 @@ v0.1.0 with sleep turned off migrate to Never. Settings with sleep on use the ne
 | `treat` | What the pet is fed: `bone` or `fish` (default `bone`). Optional |
 | `frame.width/height` | Logical px size of one frame at "medium" (default 128×128) |
 | `placeholder` | `style` (`dog`/`cat`/`blob`) + `body`/`accent`/`belly` colors, `tongue` (`true` lets the pet pant), `lick` (`paws` or `body`), used when art is missing |
-| `sounds.click` / `doubleClick` / `pickup` / `sneeze` / `growl` / `pant` / `eat` / `lick` | File names inside `sounds/`, 2–3 variants recommended for frequent sounds. All optional |
-| `sounds.synth` | Fallback per kind: `bark`, `yelp`, `whine`, `growl`, `sneeze`, `pant`, `purr`, `mew`, `hiss`, `munch`, `lick` or `none`. Optional |
+| `sounds.click` / `doubleClick` / `pickup` / `sneeze` / `growl` / `pant` / `eat` / `lick` / `attention` / `whine` / `cry` | File names inside `sounds/`, 2–3 variants recommended for frequent sounds. All optional |
+| `sounds.synth` | Fallback per kind: `bark`, `yelp`, `whine`, `growl`, `sneeze`, `pant`, `purr`, `mew`, `hiss`, `munch`, `lick`, `cry` or `none`. Optional |
 | `animations.<state>` | `sheet`, `frames`, `fps`, `loop`; or `mirrorOf` to flip another animation. For `lick`, 6 frames at 6 fps is a good start. A pet with no `lick` animation reuses idle with a console warning |
 
 States: `idle, blink, walk-left, walk-right, sit, sleep, happy, surprised, dangle, lick`.

@@ -45,6 +45,7 @@ function sanitize(raw: Partial<AppSettings> | null | undefined): AppSettings {
     onboarded: cleanOnboarded(raw),
     notifications: !!s.notifications,
     welcomeBack: !!s.welcomeBack,
+    attentionCalls: !!s.attentionCalls,
   }
 }
 

@@ -27,4 +27,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   onboarded: false,
   notifications: true,
   welcomeBack: true,
+  attentionCalls: true,
 }

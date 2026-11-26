@@ -19,7 +19,8 @@ import { PetTray, type TrayActions, type TrayState } from '@/main/tray'
 import { Walker } from '@/main/walker'
 import { PetAudio } from '@/renderer/audio'
 import { DEFAULT_SETTINGS, SIZE_SCALE } from '@/shared/defaults'
-import { SHOW_PET_EVENT, type AppSettings, type PetState, type Rect, type ToastAction } from '@/shared/types'
+import { SHOW_PET_EVENT, type AppSettings, type PetState, type Rect, type ToastAction, type PetSoundKind } from '@/shared/types'
+import { GazeTracker, type Gaze } from '@/main/gaze'
 
 const WALK_SPEED = 36 // logical px per second
 const HOLD_MS = 600
@@ -41,6 +42,13 @@ const CHECKIN_SPREAD_MS = 4 * 60_000
 const OFFER_MIN_MS = 5 * 60_000
 const OFFER_SPREAD_MS = 2 * 60_000
 const WELCOME_BACK_MIN_AWAY_MS = 0
+
+// Lonely escalation: awake time without attention. Lower these while testing.
+const LONELY_TICK_MS = 5_000
+const LONELY_BARK_MS = 3 * 60_000
+const LONELY_WHINE_MS = 6 * 60_000
+const LONELY_CRY_MS = 9 * 60_000
+const LONELY_CRY_REPEAT_MS = 4 * 60_000
 
 interface Press {
   sx: number
@@ -70,6 +78,9 @@ let clickThrough: ClickThrough
 let bubble: BubbleWindow
 let tray: PetTray | undefined
 
+let gazeTracker: GazeTracker
+let gazeDir: Gaze = [0, 0]
+
 let press: Press | null = null
 let holdTimer: number | undefined
 let hoverTimer: number | undefined
@@ -86,6 +97,13 @@ let offerTimer: number | undefined
 let toastTimer: number | undefined
 
 let lickSoundTimer: number | undefined
+
+let lonelyTimer: number | undefined
+let lonelyMs = 0
+let lonelyStage = 0 // 0 none, 1 barked, 2 whined, 3 cried
+let lastCryMs = 0
+
+const callTimers: number[] = []
 
 let presence: Presence
 
@@ -140,6 +158,7 @@ async function boot(): Promise<void> {
   renderer.onFinish = () => machine.animationFinished()
   machine = new PetStateMachine({ onEnter: handleEnter }, machineOptions())
   clickThrough = new ClickThrough((x, y) => renderer.hitTest(x, y), handleHit)
+  gazeTracker = new GazeTracker(onGaze)
 
   await applySettings(settings, true)
   await petWindow.place(await loadPosition())
@@ -216,6 +235,7 @@ async function setVisible(next: boolean): Promise<void> {
     scheduleCheckIn()
     scheduleOffer()
     presence.start()
+    lonelyTimer = window.setInterval(lonelyTick, LONELY_TICK_MS)
   } else {
     // Hidden: stop polling, timers and drawing completely.
     clickThrough.stop()
@@ -229,11 +249,14 @@ async function setVisible(next: boolean): Promise<void> {
     closeToast()
     await endTalk()
     walker.stop()
+    gazeTracker?.stop()
     window.clearInterval(lickSoundTimer)
     cancelActions()
     machine.pause()
     renderer.stop()
     await petWindow.hide()
+    window.clearInterval(lonelyTimer)
+    attend()
   }
   await tray?.update(trayState())
 }
@@ -303,6 +326,7 @@ function scheduleGreeting(): void {
 }
 
 function onChoice(index: number): void {
+  attend()
   const choice = currentPrompt?.choices[index]
   if (!choice) return
   react(choice.react)
@@ -350,6 +374,7 @@ function cancelActions(): void {
 function feedPet(): void {
   if (!visible || acting) return
   acting = true
+  attend()
   machine.touch()
   renderer.dropTreat(loaded?.config.treat ?? 'bone')
   later(1150, () => {
@@ -385,6 +410,7 @@ async function showOffer(): Promise<void> {
 
 async function onReturn(awayMs: number): Promise<void> {
   if (!settings.welcomeBack || !settings.onboarded || !visible || acting || press) return
+  attend()
   if (currentPrompt) await endTalk()
   machine.touch() // wakes the pet if it was asleep
   audio.play('click')
@@ -392,6 +418,7 @@ async function onReturn(awayMs: number): Promise<void> {
 }
 
 function onToastChoice(action: ToastAction): void {
+  attend()
   closeToast()
   if (action === 'feed') feedPet()
   else if (action === 'play') playPet()
@@ -406,6 +433,7 @@ function closeToast(): void {
 function playPet(): void {
   if (!visible || acting) return
   acting = true
+  attend()
   machine.touch()
   renderer.bounceBall()
   for (let i = 0; i < 4; i++) {
@@ -423,6 +451,7 @@ function playPet(): void {
 /** Right-click on the pet: ask what to do. */
 async function openMenu(): Promise<void> {
   if (!visible || acting || press) return
+  attend()
   if (currentPrompt) await endTalk()
   machine.touch()
   void say(menuPrompt(persona()))
@@ -438,10 +467,69 @@ function scheduleSneeze(): void {
   }, 45_000 + Math.random() * 90_000)
 }
 
-/** The animation set to use right now: tongue out while panting, otherwise the normal one. */
+/** The owner paid attention: the pet calms down and the loneliness countdown restarts. */
+function attend(): void {
+  lonelyMs = 0
+  lonelyStage = 0
+  cancelCallOut()
+}
+
+function cancelCallOut(): void {
+  for (const t of callTimers) window.clearTimeout(t)
+  callTimers.length = 0
+}
+
+/** Plays `kind` `times` times, `gapMs` apart. With `hop`, the pet also jumps on each one. */
+function callOut(kind: PetSoundKind, times: number, gapMs: number, hop: boolean): void {
+  cancelCallOut()
+  for (let i = 0; i < times; i++) {
+    callTimers.push(
+      window.setTimeout(() => {
+        if (!visible || machine.state === 'sleep') return
+        if (hop) machine.emote()
+        audio.play(kind)
+      }, i * gapMs),
+    )
+  }
+}
+
+/** Every few seconds: count awake time without attention and escalate bark, whine, cry. */
+function lonelyTick(): void {
+  const s = machine.state
+  if (!settings.attentionCalls || !settings.onboarded) return
+  if (s === 'sleep' || s === 'dangle') return // loneliness only counts while awake
+  lonelyMs += LONELY_TICK_MS
+  if (currentPrompt || toast?.isOpen || acting || press) return // busy: the stage waits
+  if (lonelyStage === 0 && lonelyMs >= LONELY_BARK_MS) {
+    lonelyStage = 1
+    callOut('attention', 3, 900, true)
+  } else if (lonelyStage === 1 && lonelyMs >= LONELY_WHINE_MS) {
+    lonelyStage = 2
+    callOut('whine', 2, 1800, false)
+  } else if (lonelyStage === 2 && lonelyMs >= LONELY_CRY_MS) {
+    lonelyStage = 3
+    lastCryMs = lonelyMs
+    callOut('cry', 1, 0, false)
+  } else if (lonelyStage === 3 && lonelyMs - lastCryMs >= LONELY_CRY_REPEAT_MS) {
+    lastCryMs = lonelyMs
+    callOut('cry', 1, 0, false)
+  }
+}
+
 function animFor(state: PetState): LoadedAnimation {
-  const set = panting && loaded?.pantAnimations ? loaded.pantAnimations : loaded!.animations
-  return set[state]
+  if (panting && loaded?.pantAnimations) return loaded.pantAnimations[state]
+  if ((gazeDir[0] !== 0 || gazeDir[1] !== 0) && (state === 'idle' || state === 'sit')) {
+    const g = loaded?.gaze[`${state}:${gazeDir[0]},${gazeDir[1]}`]
+    if (g) return g
+  }
+  return loaded!.animations[state]
+}
+
+/** The cursor moved to a new direction: turn the eyes without restarting the animation. */
+function onGaze(g: Gaze): void {
+  gazeDir = g
+  const s = machine.state
+  if (visible && !panting && (s === 'idle' || s === 'sit')) renderer.swap(animFor(s))
 }
 
 function setPanting(on: boolean): void {
@@ -486,6 +574,9 @@ function schedulePant(delayMs?: number): void {
 function handleEnter(state: PetState): void {
   if (!loaded) return
   renderer.play(animFor(state))
+  // Eyes only follow the cursor while calm. Polling stops in every other state.
+  if (state === 'idle' || state === 'sit') gazeTracker.start()
+  else gazeTracker.stop()
   // Wet lick sound about once a second while licking, nothing otherwise
   window.clearInterval(lickSoundTimer)
   lickSoundTimer = undefined
@@ -509,6 +600,7 @@ function handleHit(hit: boolean): void {
   window.clearTimeout(hoverTimer)
   if (!hit || press) return
   hoverTimer = window.setTimeout(() => {
+    attend()
     machine.touch()
     renderer.burstHearts()
   }, HOVER_MS)
@@ -516,6 +608,7 @@ function handleHit(hit: boolean): void {
 
 function onPointerDown(e: PointerEvent): void {
   if (e.button !== 0) return
+  attend()
   const el = e.currentTarget as HTMLElement
   el.setPointerCapture(e.pointerId)
   const p: Press = { sx: e.screenX, sy: e.screenY, rect: null, moved: false, held: false }
@@ -606,11 +699,14 @@ onBeforeUnmount(() => {
   void bubble?.close()
   clickThrough?.stop()
   walker?.stop()
+  gazeTracker?.stop()
   window.clearInterval(lickSoundTimer)
   cancelActions()
   machine?.pause()
   renderer?.stop()
   for (const fn of unlisten) fn()
+  window.clearInterval(lonelyTimer)
+  cancelCallOut()
 })
 </script>
 

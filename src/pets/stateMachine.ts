@@ -68,6 +68,12 @@ export class PetStateMachine {
     if (this.state === 'sleep') this.enter('idle')
   }
 
+  /** Plays the happy animation without counting as an interaction, so the sleep countdown keeps running. */
+  emote(): void {
+    if (this.paused || this.state === 'sleep' || this.state === 'dangle') return
+    this.enter('happy')
+  }
+
   dragStart(): void {
     this.interacted()
     this.enter('dangle')

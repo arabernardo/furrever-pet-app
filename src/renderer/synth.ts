@@ -318,7 +318,37 @@ const lick: Builder = (ctx, out, pitch) => {
   return [noise]
 }
 
-const BUILDERS: Record<SynthKind, Builder> = { bark, yelp, mew, purr, whine, sneeze, growl, hiss, pant, munch, lick }
+// Long wavering cry: a rising wail, a second shorter wail, then a slow fall, with a strong wobble
+const cry: Builder = (ctx, out, pitch) => {
+  const t = ctx.currentTime
+  const osc = ctx.createOscillator()
+  osc.type = 'triangle'
+  osc.frequency.setValueAtTime(620 * pitch, t)
+  osc.frequency.exponentialRampToValueAtTime(1150 * pitch, t + 0.35)
+  osc.frequency.exponentialRampToValueAtTime(700 * pitch, t + 0.8)
+  osc.frequency.exponentialRampToValueAtTime(1050 * pitch, t + 1.0)
+  osc.frequency.exponentialRampToValueAtTime(450 * pitch, t + 1.7)
+  const wobble = ctx.createOscillator()
+  wobble.frequency.value = 8
+  const wobbleDepth = ctx.createGain()
+  wobbleDepth.gain.value = 45
+  wobble.connect(wobbleDepth)
+  wobbleDepth.connect(osc.frequency)
+  const lowpass = ctx.createBiquadFilter()
+  lowpass.type = 'lowpass'
+  lowpass.frequency.value = 2600
+  const env = envelope(ctx, t, 0.1, 0.9, 1.75)
+  osc.connect(lowpass)
+  lowpass.connect(env)
+  env.connect(out)
+  osc.start(t)
+  wobble.start(t)
+  osc.stop(t + 1.78)
+  wobble.stop(t + 1.78)
+  return [osc, wobble]
+}
+
+const BUILDERS: Record<SynthKind, Builder> = { bark, yelp, mew, purr, whine, sneeze, growl, hiss, pant, munch, lick, cry }
 
 export function buildSynth(kind: SynthKind, ctx: AudioContext, out: AudioNode, pitch: number): AudioScheduledSourceNode[] {
   return BUILDERS[kind](ctx, out, pitch)
